@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+    <h2 class="fw-semibold mb-4">All Contracts</h2>
+
+    <!-- Filter Bar -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-2">
+            <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
+        </div>
+        <div class="col-md-2">
+            <input type="text" id="filter-buyer" class="form-control form-control-sm" placeholder="Buyer">
+        </div>
+        <div class="col-md-2">
+            <input type="text" id="filter-seller" class="form-control form-control-sm" placeholder="Seller">
+        </div>
+        <div class="col-md-2">
+            <select id="filter-status" class="form-select form-select-sm">
+                <option value="">All Statuses</option>
+                <option>draft</option>
+                <option>confirmed</option>
+                <option>void</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <input type="date" id="filter-date-from" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+            <input type="date" id="filter-date-to" class="form-control form-control-sm">
+        </div>
+    </div>
+
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Contract Number</th>
+                <th>Buyer</th>
+                <th>Seller</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Books ID</th>
+            </tr>
+        </thead>
+        <tbody id="contracts-tbody">
+            {% for contract in contracts %}
+            <tr onclick="window.location='/contracts/{{ contract['salesorder_id'] }}'" style="cursor: pointer;"
+                data-number="{{ contract['salesorder_number'] | lower }}"
+                data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
+                data-seller="{{ contract['customer_name'] | lower }}"
+                data-status="{{ contract['status'] | lower }}"
+                data-date="{{ contract['date'] }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ contract['salesorder_number'] }}</td>
+                <td>{{ contract.get('cf_buyer', '') }}</td>
+                <td>{{ contract['customer_name'] }}</td>
+                <td>{{ contract['status'] }}</td>
+                <td>{{ contract['date'] }}</td>
+                <td>{{ contract['salesorder_id'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    const filterInputs = ['filter-number', 'filter-buyer', 'filter-seller', 'filter-status', 'filter-date-from', 'filter-date-to'];
+
+    filterInputs.forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
+    });
+
+    function applyFilters() {
+        const number = document.getElementById('filter-number').value.toLowerCase();
+        const buyer = document.getElementById('filter-buyer').value.toLowerCase();
+        const seller = document.getElementById('filter-seller').value.toLowerCase();
+        const status = document.getElementById('filter-status').value.toLowerCase();
+        const dateFrom = document.getElementById('filter-date-from').value;
+        const dateTo = document.getElementById('filter-date-to').value;
+
+        document.querySelectorAll('#contracts-tbody tr').forEach(row => {
+            const matchNumber = !number || row.dataset.number.includes(number);
+            const matchBuyer = !buyer || row.dataset.buyer.includes(buyer);
+            const matchSeller = !seller || row.dataset.seller.includes(seller);
+            const matchStatus = !status || row.dataset.status === status;
+            const matchDateFrom = !dateFrom || row.dataset.date >= dateFrom;
+            const matchDateTo = !dateTo || row.dataset.date <= dateTo;
+
+            row.style.display = (matchNumber && matchBuyer && matchSeller && matchStatus && matchDateFrom && matchDateTo) ? '' : 'none';
+        });
+    }
+</script>
+
+{% endblock %}
