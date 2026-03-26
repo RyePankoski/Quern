@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="fw-semibold mb-4">Employees</h2>
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Position</th>
+                    <th>Office</th>
+                    <th class="d-none d-md-table-cell">Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in employees %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ employee.employee_name }}</td>
+                    <td>{{ employee.position or '—' }}</td>
+                    <td>{{ employee.office or '—' }}</td>
+                    <td class="d-none d-md-table-cell">{{ employee.email or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

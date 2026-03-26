@@ -17,6 +17,20 @@ db.init_app(app)
 def home():
     return render_template('home.html')
 
+@app.route('/counterparties')
+def counterparties():
+    customers = Customer.query.order_by(Customer.customer_name).all()
+    return render_template('counterparties.html', customers=customers)
+
+@app.route('/items')
+def items_view():
+    items = Item.query.order_by(Item.item_name).all()
+    return render_template('items.html', items=items)
+
+@app.route('/employees')
+def employees_view():
+    employees = Employee.query.order_by(Employee.employee_name).all()
+    return render_template('employees.html', employees=employees)
 
 @app.route('/import_contract', methods=['GET', 'POST'])
 def import_contract():
@@ -46,12 +60,23 @@ def submit_contract_route():
 
 @app.route('/contracts')
 def contracts():
-    orders = get_sales_orders()
+    page = request.args.get('page', 1, type=int)
+    orders = get_sales_orders(page=page)
     customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
     for contract in orders:
         buyer_id = contract.get('cf_buyer', '')
         contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
-    return render_template('contracts.html', contracts=orders)
+    return render_template('contracts.html', contracts=orders, page=page)
+
+@app.route('/api/contracts')
+def contracts_json():
+    page = request.args.get('page', 1, type=int)
+    orders = get_sales_orders(page=page)
+    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
+    for contract in orders:
+        buyer_id = contract.get('cf_buyer', '')
+        contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
+    return {'contracts': orders, 'page': page}
 
 
 @app.route('/contracts/<salesorder_id>')
@@ -162,6 +187,8 @@ def generate_tasks(salesorder_id, country='Boulder'):
         )
         db.session.add(task)
     db.session.commit()
+
+
 
 
 @app.route('/wipe_tasks')

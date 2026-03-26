@@ -74,12 +74,12 @@ def get_access_token():
     return data["access_token"]
 
 
-def get_sales_orders():
+def get_sales_orders(page=1):
     coin = get_access_token()
     response = requests.get(
         "https://www.zohoapis.com/books/v3/salesorders",
         headers={"Authorization": f"Zoho-oauthtoken {coin}"},
-        params={"organization_id": ORG_ID, "per_page": 200}
+        params={"organization_id": ORG_ID, "per_page": 200, "page": page}
     )
     return response.json().get('salesorders', [])
 

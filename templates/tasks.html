@@ -4,6 +4,25 @@
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Tasks</h2>
 
+    {% set total_pending = task_list | selectattr('pending', 'gt', 0) | sum(attribute='pending') %}
+    {% set total_contracts = task_list | selectattr('pending', 'gt', 0) | list | length %}
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card text-center py-3">
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:#888780; margin-bottom:0.4rem;">Pending Tasks</div>
+                <div id="summary-tasks" style="font-size:2rem; font-weight:500; color:#4f7a1a;" data-target="{{ total_pending }}">0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center py-3">
+                <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:#888780; margin-bottom:0.4rem;">Contracts With Tasks</div>
+                <div id="summary-contracts" style="font-size:2rem; font-weight:500; color:#4f7a1a;" data-target="{{ total_contracts }}">0</div>
+            </div>
+        </div>
+    </div>
+
     {% if task_list %}
     <div class="list-group">
         {% for item in task_list %}
@@ -13,11 +32,14 @@
             <span style="font-weight:500;">{{ item['salesorder_number'] }}</span>
             <span>
                 {% if item['pending'] > 0 %}
-                <span class="badge rounded-pill" style="background-color:#4f7a1a; font-size:0.85rem; padding: 0.4em 0.75em;">
-                    {{ item['pending'] }} pending
+                <span class="badge rounded-pill count-badge"
+                      data-target="{{ item['pending'] }}"
+                      style="background-color:#4f7a1a; font-size:0.85rem; padding: 0.4em 0.75em;">
+                    0 pending
                 </span>
                 {% else %}
-                <span class="badge rounded-pill" style="background-color:#2c2c2a; color:#888780; font-size:0.85rem; padding: 0.4em 0.75em;">
+                <span class="badge rounded-pill"
+                      style="background-color:#2c2c2a; color:#888780; font-size:0.85rem; padding: 0.4em 0.75em;">
                     ✓ all complete
                 </span>
                 {% endif %}
@@ -30,5 +52,36 @@
     {% endif %}
 
 </div>
+
+<script>
+    function animateCount(el, target, duration, suffix) {
+        const start = performance.now();
+        const update = (time) => {
+            const elapsed = time - start;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = Math.floor(eased * target);
+            el.textContent = suffix ? `${current} ${suffix}` : current;
+            if (progress < 1) requestAnimationFrame(update);
+            else el.textContent = suffix ? `${target} ${suffix}` : target;
+        };
+        requestAnimationFrame(update);
+    }
+
+    window.addEventListener('load', () => {
+        const summaryTasks = document.getElementById('summary-tasks');
+        const summaryContracts = document.getElementById('summary-contracts');
+
+        animateCount(summaryTasks, parseInt(summaryTasks.dataset.target), 1500, null);
+        animateCount(summaryContracts, parseInt(summaryContracts.dataset.target), 1500, null);
+
+        document.querySelectorAll('.count-badge').forEach((badge, i) => {
+            const target = parseInt(badge.dataset.target);
+            setTimeout(() => {
+                animateCount(badge, target, 1200, 'pending');
+            }, i * 60);
+        });
+    });
+</script>
 
 {% endblock %}
