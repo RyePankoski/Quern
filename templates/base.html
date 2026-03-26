@@ -158,27 +158,26 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand p-0" href="/">
+            <img src="{{ url_for('static', filename='img/logo_small.png') }}" height="50">
+        </a>
 
-    <div class="container-fluid d-flex align-items-center">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
 
-        <div class="d-flex align-items-center">
-            <img src="{{ url_for('static', filename='img/logo_small.png') }}" height="60">
-        </div>
-
-        <div class="flex-grow-1 d-flex justify-content-center">
+        <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
             <div class="navbar-nav">
                 <a class="nav-link" href="/">Home</a>
                 <a class="nav-link" href="/new_contract">New Contract</a>
                 <a class="nav-link" href="/tasks">Tasks</a>
                 <a class="nav-link" href="/contracts">Contracts</a>
-                <a class="nav-link" href="#">Counterparties</a>
-                <a class="nav-link" href="#">Items</a>
-                <a class="nav-link" href="#">Employees</a>
+                <a class="nav-link" href="/counterparties">Counterparties</a>
+                <a class="nav-link" href="/items">Items</a>
+                <a class="nav-link" href="/employees">Employees</a>
             </div>
         </div>
-
-        <div style="width: 60px;"></div>
-
     </div>
 </nav>
 
@@ -220,53 +219,53 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
-$(document).ready(function() {
-    $('select[name="buyer"], select[name="seller"], select[name="commodity"], select[name="assigned_to"], select[name="broker_employee"]').select2({
-        theme: 'bootstrap-5',
-        width: '100%'
-    });
-});
-
-    window.addEventListener('load', () => {
-        document.getElementById('loading-overlay').style.display = 'none';
+    $(document).ready(function() {
+        $('select[name="buyer"], select[name="seller"], select[name="commodity"], select[name="assigned_to"], select[name="broker_employee"]').select2({
+            theme: 'bootstrap-5',
+            width: '100%'
+        });
     });
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        {% if category == 'success' or category == 'update' %}
-        document.getElementById('success-overlay').style.display = 'flex';
-        document.getElementById('success-message').textContent = {{ message | tojson }};
-        {% endif %}
-      {% endfor %}
-    {% endwith %}
+        window.addEventListener('load', () => {
+            document.getElementById('loading-overlay').style.display = 'none';
+        });
 
-    document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
-        if (link.getAttribute('href') === window.location.pathname) {
-            document.querySelectorAll('.navbar-nav .nav-link').forEach(l => l.classList.remove('active'));
-            link.classList.add('active');
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            {% if category == 'success' or category == 'update' %}
+            document.getElementById('success-overlay').style.display = 'flex';
+            document.getElementById('success-message').textContent = {{ message | tojson }};
+            {% endif %}
+          {% endfor %}
+        {% endwith %}
+
+        document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+            if (link.getAttribute('href') === window.location.pathname) {
+                document.querySelectorAll('.navbar-nav .nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+            }
+        });
+
+        const overlay = document.getElementById('loading-overlay');
+
+        function showOverlay() {
+            overlay.style.display = 'flex';
         }
-    });
 
-    const overlay = document.getElementById('loading-overlay');
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', showOverlay);
+        });
 
-    function showOverlay() {
-        overlay.style.display = 'flex';
-    }
+        document.querySelectorAll('tr[onclick]').forEach(row => {
+            row.addEventListener('click', showOverlay);
+        });
 
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', showOverlay);
-    });
-
-    document.querySelectorAll('tr[onclick]').forEach(row => {
-        row.addEventListener('click', showOverlay);
-    });
-
-    document.querySelectorAll('a[href]').forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && href !== '#') {
-            link.addEventListener('click', showOverlay);
-        }
-    });
+        document.querySelectorAll('a[href]').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && href !== '#') {
+                link.addEventListener('click', showOverlay);
+            }
+        });
 </script>
 
 </body>
