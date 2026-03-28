@@ -242,12 +242,12 @@
             row.addEventListener('click', showOverlay);
         });
 
-        document.querySelectorAll('a[href]').forEach(link => {
-            const href = link.getAttribute('href');
-            if (href && href !== '#') {
-                link.addEventListener('click', showOverlay);
-            }
-        });
+            document.querySelectorAll('a[href]').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && href !== '#' && !link.hasAttribute('data-no-overlay')) {
+                    link.addEventListener('click', showOverlay);
+                }
+            });
 </script>
 
 </body>
