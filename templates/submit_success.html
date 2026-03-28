@@ -3,8 +3,8 @@
 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:70vh; gap:24px;">
     <img src="{{ url_for('static', filename='img/submit.png') }}" style="width:220px; height:auto; opacity:0.9;">
     <p style="color:#d3d1c7; font-size:1.1rem; letter-spacing:0.04em; margin:0;">
-        Contract submitted successfully.
-    </p>
+    Contract {{ 'updated' if request.args.get('action') == 'updated' else 'submitted' }} successfully.
+</p>
     <p style="color:#4f7a1a; font-size:1.4rem; font-weight:600; margin:0;">
         {{ salesorder_number }}
     </p>
@@ -13,6 +13,7 @@
         <a href="/new_contract" class="btn btn-outline-secondary">New Contract</a>
         <a href="/new_contract?duplicate={{ salesorder_id }}" class="btn btn-outline-secondary">Duplicate</a>
         <a href="/contracts/{{ salesorder_id }}" class="btn btn-success">View Contract</a>
+        <a href="/contracts/{{ salesorder_id }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>
     </div>
 </div>
 {% endblock %}
