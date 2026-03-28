@@ -17,20 +17,24 @@ db.init_app(app)
 def home():
     return render_template('home.html')
 
+
 @app.route('/counterparties')
 def counterparties():
     customers = Customer.query.order_by(Customer.customer_name).all()
     return render_template('counterparties.html', customers=customers)
+
 
 @app.route('/items')
 def items_view():
     items = Item.query.order_by(Item.item_name).all()
     return render_template('items.html', items=items)
 
+
 @app.route('/employees')
 def employees_view():
     employees = Employee.query.order_by(Employee.employee_name).all()
     return render_template('employees.html', employees=employees)
+
 
 @app.route('/import_contract', methods=['GET', 'POST'])
 def import_contract():
@@ -42,7 +46,29 @@ def new_contract():
     items = Item.query.all()
     customers = Customer.query.all()
     employees = Employee.query.all()
-    return render_template('new_contract.html', items=items, customers=customers, employees=employees)
+    prefill = None
+    duplicate_id = request.args.get('duplicate')
+    if duplicate_id:
+        raw = zoho.get_sales_order(duplicate_id)
+        custom = {f['api_name']: f['value'] for f in raw.get('custom_fields', [])}
+        prefill = {
+            'seller': raw.get('customer_id', ''),
+            'buyer': custom.get('cf_buyer', ''),
+            'commodity': raw['line_items'][0]['item_id'] if raw.get('line_items') else '',
+            'commodity_rate': custom.get('cf_item_contract_price', ''),
+            'commission_rate': raw['line_items'][0]['rate'] if raw.get('line_items') else '',
+            'quantity': raw['line_items'][0]['quantity'] if raw.get('line_items') else '',
+            'uom': custom.get('cf_uom', ''),
+            'transportation': custom.get('cf_trnspname', ''),
+            'vessel_name': custom.get('cf_vessel_name', ''),
+            'shipping_date': raw.get('shipment_date', ''),
+            'delivery_notes': raw.get('notes', ''),
+            'terms': raw.get('terms', ''),
+            'seller_reference': custom.get('cf_customer_ref', ''),
+            'co_broker_name': custom.get('cf_co_broker', ''),
+            'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
+        }
+    return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill)
 
 
 @app.route('/submit_contract', methods=['POST'])
@@ -50,12 +76,70 @@ def submit_contract_route():
     result = zoho.submit_contract(request.form)
     if result.get('code', 0) == 0:
         salesorder_id = result['salesorder']['salesorder_id']
+        salesorder_number = result['salesorder']['salesorder_number']
         generate_tasks(salesorder_id)
-        flash('Contract submitted successfully.', 'success')
-        return redirect('/new_contract')
+        return redirect(f'/submit_success/{salesorder_id}?number={salesorder_number}')
     else:
         flash(f"Submission failed: {result.get('message', 'Unknown error')}", 'danger')
         return redirect('/new_contract')
+
+
+@app.route('/submit_success/<salesorder_id>')
+def submit_success(salesorder_id):
+    salesorder_number = request.args.get('number', 'Unknown')
+    return render_template('submit_success.html', salesorder_id=salesorder_id, salesorder_number=salesorder_number)
+
+
+@app.route('/bulk_edit')
+def bulk_edit():
+    orders = get_sales_orders()
+    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
+    for contract in orders:
+        buyer_id = contract.get('cf_buyer', '')
+        contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
+    return render_template('bulk_edit.html', contracts=orders)
+
+
+@app.route('/bulk_edit/<salesorder_id>', methods=['POST'])
+def bulk_edit_save(salesorder_id):
+    data = request.get_json()
+    field = data.get('field')
+    value = data.get('value')
+
+    allowed_fields = {'vessel_name', 'quantity'}
+    if field not in allowed_fields:
+        return {'ok': False, 'error': 'Invalid field'}, 400
+
+    contract = zoho.get_sales_order(salesorder_id)
+    custom = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
+    line_items = contract.get('line_items', [{}])
+
+    form_data = {
+        'seller': contract.get('customer_id', ''),
+        'buyer': custom.get('cf_buyer', ''),
+        'contract_date': contract.get('date', ''),
+        'shipping_date': contract.get('shipment_date', ''),
+        'delivery_notes': contract.get('notes', ''),
+        'terms': contract.get('terms', ''),
+        'commodity': line_items[0].get('item_id', '') if line_items else '',
+        'commission_rate': line_items[0].get('rate', '') if line_items else '',
+        'quantity': line_items[0].get('quantity', '') if line_items else '',
+        'commodity_rate': custom.get('cf_item_contract_price', ''),
+        'vessel_name': custom.get('cf_vessel_name', ''),
+        'transportation': custom.get('cf_trnspname', ''),
+        'uom': custom.get('cf_uom', ''),
+        'seller_reference': custom.get('cf_customer_ref', ''),
+        'co_broker_name': custom.get('cf_co_broker', ''),
+        'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
+    }
+
+    form_data[field] = value
+
+    result = zoho.update_contract(salesorder_id, form_data)
+    if result.get('code', 0) == 0:
+        return {'ok': True}
+    else:
+        return {'ok': False, 'error': result.get('message', 'Unknown error')}, 500
 
 
 @app.route('/contracts')
@@ -67,6 +151,7 @@ def contracts():
         buyer_id = contract.get('cf_buyer', '')
         contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
     return render_template('contracts.html', contracts=orders, page=page)
+
 
 @app.route('/api/contracts')
 def contracts_json():
@@ -187,8 +272,6 @@ def generate_tasks(salesorder_id, country='Boulder'):
         )
         db.session.add(task)
     db.session.commit()
-
-
 
 
 @app.route('/wipe_tasks')
