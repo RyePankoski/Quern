@@ -2,7 +2,10 @@
 {% block content %}
 
 <div class="container py-4">
-    <h2 class="fw-semibold mb-4">All Contracts</h2>
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <h2 class="fw-semibold mb-0">All Contracts</h2>
+        <a href="/bulk_edit" class="btn btn-outline-secondary">Bulk Edit</a>
+    </div>
 
     <!-- Filter Bar -->
     <div class="row g-2 mb-3">
@@ -34,33 +37,33 @@
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Contract Number</th>
-                    <th>Buyer</th>
-                    <th>Seller</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th class="d-none d-md-table-cell">Books ID</th>
-                </tr>
+            <tr>
+                <th>#</th>
+                <th>Contract Number</th>
+                <th>Buyer</th>
+                <th>Seller</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th class="d-none d-md-table-cell">Books ID</th>
+            </tr>
             </thead>
             <tbody id="contracts-tbody">
-                {% for contract in contracts %}
-                <tr onclick="window.location='/contracts/{{ contract['salesorder_id'] }}'" style="cursor: pointer;"
-                    data-number="{{ contract['salesorder_number'] | lower }}"
-                    data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
-                    data-seller="{{ contract['customer_name'] | lower }}"
-                    data-status="{{ contract['status'] | lower }}"
-                    data-date="{{ contract['date'] }}">
-                    <td>{{ loop.index }}</td>
-                    <td>{{ contract['salesorder_number'] }}</td>
-                    <td>{{ contract.get('cf_buyer', '') }}</td>
-                    <td>{{ contract['customer_name'] }}</td>
-                    <td>{{ contract['status'] }}</td>
-                    <td>{{ contract['date'] }}</td>
-                    <td class="d-none d-md-table-cell">{{ contract['salesorder_id'] }}</td>
-                </tr>
-                {% endfor %}
+            {% for contract in contracts %}
+            <tr onclick="window.location='/contracts/{{ contract['salesorder_id'] }}'" style="cursor: pointer;"
+                data-number="{{ contract['salesorder_number'] | lower }}"
+                data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
+                data-seller="{{ contract['customer_name'] | lower }}"
+                data-status="{{ contract['status'] | lower }}"
+                data-date="{{ contract['date'] }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ contract['salesorder_number'] }}</td>
+                <td>{{ contract.get('cf_buyer', '') }}</td>
+                <td>{{ contract['customer_name'] }}</td>
+                <td>{{ contract['status'] }}</td>
+                <td>{{ contract['date'] }}</td>
+                <td class="d-none d-md-table-cell">{{ contract['salesorder_id'] }}</td>
+            </tr>
+            {% endfor %}
             </tbody>
         </table>
     </div>

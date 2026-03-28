@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-semibold mb-0">Bulk Edit</h2>
+            <span class="text-muted">Edit a single field across all contracts.</span>
+        </div>
+        <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
+    </div>
+
+    <div class="mb-4" style="max-width: 280px;">
+        <label class="form-label">Field to Edit</label>
+        <select class="form-select" id="field-select">
+            <option value="">-- Select a field --</option>
+            <option value="vessel_name">Vessel Name</option>
+            <option value="quantity">Quantity</option>
+        </select>
+    </div>
+
+    <div id="table-wrapper" style="display:none;">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Contract #</th>
+                        <th>Buyer</th>
+                        <th>Seller</th>
+                        <th id="field-col-header">Value</th>
+                        <th style="width: 80px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="bulk-tbody">
+                    {% for contract in contracts %}
+                    <tr
+                        data-id="{{ contract['salesorder_id'] }}"
+                        data-vessel="{{ contract.get('cf_vessel_name', '') }}"
+                        data-quantity="">
+                        <td>{{ contract['salesorder_number'] }}</td>
+                        <td>{{ contract.get('cf_buyer', '') }}</td>
+                        <td>{{ contract['customer_name'] }}</td>
+                        <td class="value-cell">
+                            <!-- input injected by JS -->
+                        </td>
+                        <td class="text-center">
+                            <button
+                                class="btn btn-sm save-btn"
+                                style="background-color:#3a3a38; border-color:#3a3a38; color:#888780; min-width:60px;"
+                                disabled>
+                                Save
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // Embed contract line item data for quantity (not available in list endpoint)
+    // quantity will be blank until user edits — that's acceptable for bulk edit
+    const fieldLabels = {
+        vessel_name: 'Vessel Name',
+        quantity: 'Quantity'
+    };
+
+    const fieldSelect = document.getElementById('field-select');
+    const tableWrapper = document.getElementById('table-wrapper');
+    const fieldColHeader = document.getElementById('field-col-header');
+    const rows = document.querySelectorAll('#bulk-tbody tr');
+
+    fieldSelect.addEventListener('change', () => {
+        const field = fieldSelect.value;
+        if (!field) {
+            tableWrapper.style.display = 'none';
+            return;
+        }
+
+        fieldColHeader.textContent = fieldLabels[field] || field;
+        tableWrapper.style.display = 'block';
+
+        rows.forEach(row => {
+            const valueCell = row.querySelector('.value-cell');
+            const saveBtn = row.querySelector('.save-btn');
+            const currentVal = field === 'vessel_name'
+                ? (row.dataset.vessel || '')
+                : (row.dataset.quantity || '');
+
+            const inputType = field === 'quantity' ? 'number' : 'text';
+            const input = document.createElement('input');
+            input.type = inputType;
+            if (field === 'quantity') input.step = '0.01';
+            input.className = 'form-control form-control-sm';
+            input.value = currentVal;
+            input.dataset.original = currentVal;
+
+            input.addEventListener('input', () => {
+                const dirty = input.value !== input.dataset.original;
+                if (dirty) {
+                    saveBtn.style.backgroundColor = '#4f7a1a';
+                    saveBtn.style.borderColor = '#4f7a1a';
+                    saveBtn.style.color = '#fff';
+                    saveBtn.disabled = false;
+                } else {
+                    saveBtn.style.backgroundColor = '#3a3a38';
+                    saveBtn.style.borderColor = '#3a3a38';
+                    saveBtn.style.color = '#888780';
+                    saveBtn.disabled = true;
+                }
+            });
+
+            valueCell.innerHTML = '';
+            valueCell.appendChild(input);
+
+            // Reset save button state
+            saveBtn.style.backgroundColor = '#3a3a38';
+            saveBtn.style.borderColor = '#3a3a38';
+            saveBtn.style.color = '#888780';
+            saveBtn.disabled = true;
+
+            // Rebind save handler
+            const newBtn = saveBtn.cloneNode(true);
+            saveBtn.parentNode.replaceChild(newBtn, saveBtn);
+
+            newBtn.style.backgroundColor = '#3a3a38';
+            newBtn.style.borderColor = '#3a3a38';
+            newBtn.style.color = '#888780';
+            newBtn.disabled = true;
+
+            input.addEventListener('input', () => {
+                const dirty = input.value !== input.dataset.original;
+                if (dirty) {
+                    newBtn.style.backgroundColor = '#4f7a1a';
+                    newBtn.style.borderColor = '#4f7a1a';
+                    newBtn.style.color = '#fff';
+                    newBtn.disabled = false;
+                } else {
+                    newBtn.style.backgroundColor = '#3a3a38';
+                    newBtn.style.borderColor = '#3a3a38';
+                    newBtn.style.color = '#888780';
+                    newBtn.disabled = true;
+                }
+            });
+
+            newBtn.addEventListener('click', () => {
+                const salesorder_id = row.dataset.id;
+                newBtn.textContent = '...';
+                newBtn.disabled = true;
+
+                fetch(`/bulk_edit/${salesorder_id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field: field, value: input.value })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ok) {
+                        input.dataset.original = input.value;
+                        newBtn.textContent = '✓';
+                        newBtn.style.backgroundColor = '#2a5a10';
+                        newBtn.style.borderColor = '#2a5a10';
+                        newBtn.style.color = '#fff';
+                        newBtn.disabled = true;
+                        setTimeout(() => {
+                            newBtn.textContent = 'Save';
+                            newBtn.style.backgroundColor = '#3a3a38';
+                            newBtn.style.borderColor = '#3a3a38';
+                            newBtn.style.color = '#888780';
+                        }, 1500);
+                    } else {
+                        newBtn.textContent = 'Error';
+                        newBtn.style.backgroundColor = '#8b0000';
+                        newBtn.style.borderColor = '#8b0000';
+                        newBtn.style.color = '#fff';
+                        newBtn.disabled = false;
+                        setTimeout(() => {
+                            newBtn.textContent = 'Save';
+                            newBtn.style.backgroundColor = '#4f7a1a';
+                            newBtn.style.borderColor = '#4f7a1a';
+                        }, 2000);
+                    }
+                })
+                .catch(() => {
+                    newBtn.textContent = 'Error';
+                    newBtn.style.backgroundColor = '#8b0000';
+                    newBtn.style.borderColor = '#8b0000';
+                    newBtn.style.color = '#fff';
+                    newBtn.disabled = false;
+                });
+            });
+        });
+    });
+</script>
+
+{% endblock %}
