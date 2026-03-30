@@ -15,6 +15,8 @@ _token_cache = {"access_token": None, "expires_at": 0}
 _TOKEN_FILE = "../.token_cache"
 
 
+
+
 # Sync functions
 
 def sync_customers():
@@ -203,27 +205,18 @@ def get_next_test_number():
     return f'TEST-{next_num:03d}'
 
 
-# def get_access_token():
-#     import time
-#     if _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
-#         return _token_cache["access_token"]
-#
-#     response = requests.post(
-#         "https://accounts.zoho.com/oauth/v2/token",
-#         params={
-#             "grant_type": "refresh_token",
-#             "client_id": CLIENT_ID,
-#             "client_secret": CLIENT_SECRET,
-#             "refresh_token": REFRESH_TOKEN,
-#         }
-#     )
-#     data = response.json()
-#     if 'access_token' not in data:
-#         raise RuntimeError(f"Failed to get access token: {data}")
-#
-#     _token_cache["access_token"] = data["access_token"]
-#     _token_cache["expires_at"] = time.time() + 3500
-#     return data["access_token"]
+def get_locations():
+    return [
+        {'branch_id': '4435369000015041009', 'branch_name': 'Head Office'},
+        {'branch_id': '4435369000015041105', 'branch_name': 'FrontSeat'},
+        {'branch_id': '4435369000015041141', 'branch_name': 'Argentina'},
+        {'branch_id': '4435369000015041186', 'branch_name': 'Brazil'},
+        {'branch_id': '4435369000015041222', 'branch_name': 'Shanghai'},
+        {'branch_id': '4435369000015041258', 'branch_name': 'Australia'},
+        {'branch_id': '4435369000015041294', 'branch_name': 'India'},
+        {'branch_id': '4435369000015041905', 'branch_name': 'Turkey'},
+    ]
+
 
 # Contract stuff
 
@@ -237,6 +230,7 @@ def submit_contract(form_data):
         "shipment_date": form_data.get('shipping_date'),
         "notes": form_data.get('delivery_notes'),
         "terms": form_data.get('terms'),
+        "location_id": form_data.get('location_id'),
         "line_items": [
             {
                 "item_id": form_data.get('commodity'),
@@ -327,6 +321,8 @@ def contract_to_form_data(contract):
         'seller_reference': custom.get('cf_customer_ref', ''),
         'co_broker_name': custom.get('cf_co_broker', ''),
         'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
+        'location_id': contract.get('location_id', ''),
+        'location_name': contract.get('location_name', ''),
     }
 
 
@@ -338,3 +334,25 @@ if __name__ == '__main__':
         params={"organization_id": ORG_ID, "per_page": 1}
     )
     print(response.json())
+
+# def get_access_token():
+#     import time
+#     if _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
+#         return _token_cache["access_token"]
+#
+#     response = requests.post(
+#         "https://accounts.zoho.com/oauth/v2/token",
+#         params={
+#             "grant_type": "refresh_token",
+#             "client_id": CLIENT_ID,
+#             "client_secret": CLIENT_SECRET,
+#             "refresh_token": REFRESH_TOKEN,
+#         }
+#     )
+#     data = response.json()
+#     if 'access_token' not in data:
+#         raise RuntimeError(f"Failed to get access token: {data}")
+#
+#     _token_cache["access_token"] = data["access_token"]
+#     _token_cache["expires_at"] = time.time() + 3500
+#     return data["access_token"]
