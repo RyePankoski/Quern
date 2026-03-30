@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-semibold mb-0">Audit Log</h2>
+            <span class="text-muted">Last 200 actions</span>
+        </div>
+        <a href="/" class="btn btn-outline-secondary">← Back</a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Method</th>
+                    <th>Path</th>
+                    <th>Salesorder ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space:nowrap; color:#888780; font-size:0.85rem;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.user }}</td>
+                    <td>
+                        <span style="font-size:0.75rem; font-weight:600; letter-spacing:0.05em; color:
+                            {% if log.method == 'POST' %}#4f7a1a
+                            {% elif log.method == 'DELETE' %}#8b0000
+                            {% else %}#888780{% endif %}">
+                            {{ log.method }}
+                        </span>
+                    </td>
+                    <td style="font-family: monospace; font-size:0.85rem;">{{ log.path }}</td>
+                    <td>
+                        {% if log.salesorder_id %}
+                        <a href="/contracts/{{ log.salesorder_id }}" style="color:#4f7a1a;">{{ log.salesorder_id }}</a>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

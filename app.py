@@ -1,6 +1,7 @@
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from flask import Flask, render_template, request, redirect, flash, send_file
-from core.models import db, Customer, Item, Employee, Task, TaskTemplate
+from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog
 from core.tasks import generate_tasks, check_task_reactivity
 from core.pdf import generate_contract_pdf
 from datetime import datetime
@@ -13,46 +14,57 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
 db.init_app(app)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
 
 # Routes to move to a new page
 
 @app.route('/')
+@login_required
 def home():
     return render_template('home.html')
 
 
 @app.route('/items')
+@login_required
 def items_view():
     items = Item.query.order_by(Item.item_name).all()
     return render_template('items.html', items=items)
 
 
 @app.route('/counterparties')
+@login_required
 def counterparties():
     customers = Customer.query.order_by(Customer.customer_name).all()
     return render_template('counterparties.html', customers=customers)
 
 
 @app.route('/employees')
+@login_required
 def employees_view():
     employees = Employee.query.order_by(Employee.employee_name).all()
     return render_template('employees.html', employees=employees)
 
 
 @app.route('/new_contract')
+@login_required
 def new_contract():
     items = Item.query.all()
     customers = Customer.query.all()
     employees = Employee.query.all()
+    locations = zoho.get_locations()
     prefill = None
     duplicate_id = request.args.get('duplicate')
     if duplicate_id:
         raw = zoho.get_sales_order(duplicate_id)
         prefill = zoho.contract_to_form_data(raw)
-    return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill)
+    return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill, locations=locations)
 
 
 @app.route('/bulk_edit')
+@login_required
 def bulk_edit():
     orders = get_sales_orders()
     customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
@@ -63,6 +75,7 @@ def bulk_edit():
 
 
 @app.route('/contracts')
+@login_required
 def contracts():
     page = request.args.get('page', 1, type=int)
     orders = get_sales_orders(page=page)
@@ -74,6 +87,7 @@ def contracts():
 
 
 @app.route('/contracts/<salesorder_id>')
+@login_required
 def contract_detail(salesorder_id):
     contract = zoho.get_sales_order(salesorder_id)
 
@@ -96,6 +110,7 @@ def contract_detail(salesorder_id):
 
 
 @app.route('/tasks')
+@login_required
 def tasks_view():
     from sqlalchemy import func
     task_counts = db.session.query(
@@ -121,15 +136,33 @@ def tasks_view():
     return render_template('tasks.html', task_list=task_list)
 
 
+@app.route('/admin/audit')
+@login_required
+def audit_log_view():
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(200).all()
+    return render_template('admin_audit.html', logs=logs)
+
+
 # Submission/Api Call
 
 @app.route('/submit_contract', methods=['POST'])
+@login_required
 def submit_contract_route():
     result = zoho.submit_contract(request.form)
     if result.get('code', 0) == 0:
         salesorder_id = result['salesorder']['salesorder_id']
         salesorder_number = result['salesorder']['salesorder_number']
-        generate_tasks(salesorder_id)
+        office = request.form.get('location_name', 'Head Office')
+        generate_tasks(salesorder_id, country=office)
+        log = AuditLog(
+            user=current_user.username,
+            method='POST',
+            path='/submit_contract',
+            salesorder_id=salesorder_id,
+            timestamp=datetime.utcnow()
+        )
+        db.session.add(log)
+        db.session.commit()
         return redirect(f'/submit_success/{salesorder_id}?number={salesorder_number}')
     else:
         flash(f"Submission failed: {result.get('message', 'Unknown error')}", 'danger')
@@ -137,6 +170,7 @@ def submit_contract_route():
 
 
 @app.route('/bulk_edit/<salesorder_id>', methods=['POST'])
+@login_required
 def bulk_edit_save(salesorder_id):
     data = request.get_json()
     field = data.get('field')
@@ -159,6 +193,7 @@ def bulk_edit_save(salesorder_id):
 
 
 @app.route('/contracts/<salesorder_id>/update', methods=['POST'])
+@login_required
 def update_contract(salesorder_id):
     result = zoho.update_contract(salesorder_id, request.form)
     if result.get('code', 0) == 0:
@@ -171,6 +206,7 @@ def update_contract(salesorder_id):
 
 
 @app.route('/contracts/<salesorder_id>/pdf')
+@login_required
 def contract_pdf(salesorder_id):
     contract = zoho.get_sales_order(salesorder_id)
     form_data = zoho.contract_to_form_data(contract)
@@ -202,9 +238,121 @@ def contract_pdf(salesorder_id):
     )
 
 
+# Security related
+
+@app.before_request
+def audit_log():
+    if request.method != 'POST':
+        return
+    if not current_user.is_authenticated:
+        return
+
+    # Only log contract-related actions
+    path = request.path
+    contract_paths = ['/contracts/', '/bulk_edit/']
+    if not any(path.startswith(p) for p in contract_paths):
+        return
+
+    # Try to extract salesorder ID from path
+    parts = path.strip('/').split('/')
+    salesorder_id = parts[1] if len(parts) >= 2 and parts[0] == 'contracts' else None
+
+    log = AuditLog(
+        user=current_user.username,
+        method=request.method,
+        path=path,
+        salesorder_id=salesorder_id,
+        timestamp=datetime.utcnow()
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+# User auth and login routes
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect('/')
+        flash('Invalid username or password.', 'danger')
+    return render_template('login.html')
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect('/login')
+
+
+# Admin task template creation.
+
+@app.route('/admin/templates')
+@login_required
+def admin_templates():
+    templates = TaskTemplate.query.order_by(TaskTemplate.country, TaskTemplate.order).all()
+    return render_template('admin_templates.html', templates=templates)
+
+
+@app.route('/admin/templates/create', methods=['POST'])
+@login_required
+def create_template():
+    order = request.form.get('order', '').strip()
+    template = TaskTemplate(
+        country=request.form.get('country'),
+        order=int(order) if order else 0,
+        title=request.form.get('title'),
+        description=request.form.get('description'),
+        books_field=request.form.get('books_field')
+    )
+    db.session.add(template)
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
+@app.route('/admin/templates/<int:template_id>/update', methods=['POST'])
+@login_required
+def update_template(template_id):
+    template = TaskTemplate.query.get(template_id)
+    if not template:
+        flash('Template not found.', 'danger')
+        return redirect('/admin/templates')
+    template.country = request.form.get('country')
+    template.order = int(request.form.get('order', 0))
+    template.title = request.form.get('title')
+    template.description = request.form.get('description')
+    template.books_field = request.form.get('books_field')
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
+@app.route('/admin/templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+def delete_template(template_id):
+    template = TaskTemplate.query.get(template_id)
+    if not template:
+        flash('Template not found.', 'danger')
+        return redirect('/admin/templates')
+    db.session.delete(template)
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
 # Sub-screens like submission success
 
 @app.route('/submit_success/<salesorder_id>')
+@login_required
 def submit_success(salesorder_id):
     salesorder_number = request.args.get('number', 'Unknown')
     return render_template('submit_success.html', salesorder_id=salesorder_id, salesorder_number=salesorder_number)
@@ -235,6 +383,7 @@ def seed_tasks():
 
 
 @app.route('/tasks/<int:task_id>/confirm', methods=['POST'])
+@login_required
 def confirm_task(task_id):
     data = request.get_json()
     task = Task.query.get(task_id)
@@ -249,7 +398,9 @@ def confirm_task(task_id):
 
 # Resource creation, like the contracts JSON
 
+
 @app.route('/api/contracts')
+@login_required
 def contracts_json():
     page = request.args.get('page', 1, type=int)
     orders = get_sales_orders(page=page)
@@ -260,13 +411,28 @@ def contracts_json():
     return {'contracts': orders, 'page': page}
 
 
-# Functions used by routes
+# Functions
 
 def first_time_startup():
+    wipe_tasks()
+    seed_tasks()
+
     sync_items()
     sync_customers()
     sync_employees()
-    seed_tasks()
+
+    create_user()
+
+
+def create_user():
+    if User.query.first():
+        return 'User already exists'
+    user = User()
+    user.username = 'admin'
+    user.set_password('changeme')
+    db.session.add(user)
+    db.session.commit()
+    return redirect('/logout')
 
 
 def wipe_tasks():
@@ -275,8 +441,33 @@ def wipe_tasks():
     return "All tasks wiped."
 
 
+def wipe_audit():
+    AuditLog.query.delete()
+    db.session.commit()
+    return 'All audit logs wiped.'
+
+
+def wipe_users():
+    User.query.delete()
+    db.session.commit()
+    return 'All users wiped.'
+
+
+def debug_first_contract():
+    orders = get_sales_orders(page=1)
+    if not orders:
+        return {'error': 'No contracts found'}
+    first_id = orders[0]['salesorder_id']
+    contract = zoho.get_sales_order(first_id)
+    return contract
+
+def debug_locations():
+    return {'locations': zoho.get_locations()}
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        print(debug_locations())
 
     app.run(debug=True, host='0.0.0.0')

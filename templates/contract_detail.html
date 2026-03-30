@@ -211,7 +211,13 @@
        id="task-counter"></p>
     <p style="color:#d3d1c7; font-weight:500; margin-bottom:0.5rem;" id="task-title"></p>
     <p style="color:#888780; font-size:0.9rem; margin-bottom:1rem;" id="task-description"></p>
-    <button id="task-confirm" class="btn btn-success w-100">Confirm</button>
+    <!-- Field task -->
+    <button id="task-confirm" class="btn btn-success w-100" style="display:none;">Confirm</button>
+    <!-- Yes/No task -->
+    <div id="task-yesno" style="display:none; gap:0.5rem;" class="d-flex">
+        <button id="task-yes" class="btn btn-success w-50">Yes</button>
+        <button id="task-no" class="btn btn-outline-secondary w-50">No</button>
+    </div>
 </div>
 
 <script>
@@ -235,33 +241,36 @@
         return document.querySelector(`[name="${fieldName}"]`);
     }
 
-function positionBox(fieldEl) {
-    const rect = fieldEl.getBoundingClientRect();
-    const box = document.getElementById('task-box');
-    const margin = 20;
-    const boxWidth = 280;
-
-    box.style.display = 'block';
-
-    // Try Right first
-    let left = rect.right + margin;
-    let top = rect.top; // Fixed position doesn't need window.scrollY if field is already in view
-
-    // Flip to Left if no room on Right
-    if (left + boxWidth > window.innerWidth) {
-        left = rect.left - boxWidth - margin;
+    function positionBox(fieldEl) {
+        const rect = fieldEl.getBoundingClientRect();
+        const box = document.getElementById('task-box');
+        const margin = 20;
+        const boxWidth = 280;
+        box.style.display = 'block';
+        let left = rect.right + margin;
+        let top = rect.top;
+        if (left + boxWidth > window.innerWidth) {
+            left = rect.left - boxWidth - margin;
+        }
+        left = Math.max(margin, left);
+        box.style.left = left + 'px';
+        box.style.top = top + 'px';
     }
 
-    // Safety: don't let it go off the left edge
-    left = Math.max(margin, left);
+    function centerBox() {
+        const box = document.getElementById('task-box');
+        box.style.display = 'block';
+        box.style.left = '50%';
+        box.style.top = '50%';
+        box.style.transform = 'translate(-50%, -50%)';
+    }
 
-    box.style.left = left + 'px';
-    box.style.top = top + 'px';
-}
+    function resetBoxPosition() {
+        const box = document.getElementById('task-box');
+        box.style.transform = '';
+    }
 
-
-    function confirmTask(taskId, fieldEl) {
-        const value = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
+    function confirmTask(taskId, value) {
         fetch(`/tasks/${taskId}/confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -275,50 +284,84 @@ function positionBox(fieldEl) {
         });
     }
 
-   function showTask(index) {
-    const currentPending = tasks.filter(id => taskData[id].status === 'pending');
-    if (index >= currentPending.length) {
-        exitWalkthrough();
-        return;
-    }
+    function showTask(index) {
+        const currentPending = tasks.filter(id => taskData[id].status === 'pending');
+        if (index >= currentPending.length) {
+            exitWalkthrough();
+            return;
+        }
 
-    const task = taskData[currentPending[index]];
-    const fieldEl = getFieldElement(task.field);
-    if (!fieldEl) {
-        showTask(index + 1);
-        return;
-    }
+        const task = taskData[currentPending[index]];
+        const confirmBtn = document.getElementById('task-confirm');
+        const yesnoDiv = document.getElementById('task-yesno');
+        const yesBtn = document.getElementById('task-yes');
+        const noBtn = document.getElementById('task-no');
 
-    // 1. Scroll the field into view
-    fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // 2. Wait for the scroll to finish (approx 300ms) before positioning
-    setTimeout(() => {
-        const rect = fieldEl.getBoundingClientRect();
-
-        // Update the Highlight Overlay
-        document.getElementById('task-overlay').style.cssText = `
-            display:block;
-            position:fixed;
-            inset:0;
-            z-index:2000;
-            pointer-events:none;
-            background: radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%);
-        `;
-
-        // Update Text
+        // Update text
         document.getElementById('task-counter').textContent = `Task ${index + 1} of ${currentPending.length}`;
         document.getElementById('task-title').textContent = task.title;
         document.getElementById('task-description').textContent = task.description;
 
-        // Position the Box
-        positionBox(fieldEl);
+        // Clone buttons to clear old listeners
+        const newYes = yesBtn.cloneNode(true);
+        const newNo = noBtn.cloneNode(true);
+        yesBtn.parentNode.replaceChild(newYes, yesBtn);
+        noBtn.parentNode.replaceChild(newNo, noBtn);
 
-        const confirmBtn = document.getElementById('task-confirm');
-        confirmBtn.replaceWith(confirmBtn.cloneNode(true));
-        document.getElementById('task-confirm').onclick = () => confirmTask(task.id, fieldEl);
-    }, 350); // This delay is the secret sauce
-}
+        if (task.field) {
+            // Field task — spotlight the field
+            const fieldEl = getFieldElement(task.field);
+            if (!fieldEl) {
+                showTask(index + 1);
+                return;
+            }
+
+            confirmBtn.style.display = 'block';
+            yesnoDiv.style.display = 'none';
+
+            fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setTimeout(() => {
+                const rect = fieldEl.getBoundingClientRect();
+                document.getElementById('task-overlay').style.cssText = `
+                    display:block;
+                    position:fixed;
+                    inset:0;
+                    z-index:2000;
+                    pointer-events:none;
+                    background: radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%);
+                `;
+                resetBoxPosition();
+                positionBox(fieldEl);
+
+                const newConfirm = confirmBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+                document.getElementById('task-confirm').onclick = () => {
+                    const value = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
+                    confirmTask(task.id, value);
+                };
+            }, 350);
+
+        } else {
+            // Yes/No task — center the box, dim the whole screen
+            confirmBtn.style.display = 'none';
+            yesnoDiv.style.display = 'flex';
+
+            document.getElementById('task-overlay').style.cssText = `
+                display:block;
+                position:fixed;
+                inset:0;
+                z-index:2000;
+                pointer-events:none;
+                background: rgba(14,14,12,0.85);
+            `;
+
+            centerBox();
+
+            document.getElementById('task-yes').onclick = () => confirmTask(task.id, 'yes');
+            document.getElementById('task-no').onclick = () => confirmTask(task.id, 'no');
+        }
+    }
 
     function updateTaskButton() {
         const remaining = tasks.filter(id => taskData[id].status === 'pending').length;

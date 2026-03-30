@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-semibold mb-0">Task Templates</h2>
+            <span class="text-muted">Manage task templates per country</span>
+        </div>
+    </div>
+
+    <!-- Create New Template -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">New Template</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="/admin/templates/create">
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Country</label>
+                        <input type="text" class="form-control" name="country" placeholder="e.g. Boulder">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label">Order</label>
+                        <input type="number" class="form-control" name="order" placeholder="1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" name="title" placeholder="Task title">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" name="description" placeholder="Task description">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Books Field</label>
+                        <select class="form-select" name="books_field">
+                            <option value="">-- Select Field --</option>
+                            <option value="buyer">Buyer</option>
+                            <option value="seller">Seller</option>
+                            <option value="commodity">Commodity</option>
+                            <option value="commodity_rate">Commodity Price</option>
+                            <option value="transportation">Transportation</option>
+                            <option value="vessel_name">Vessel Name</option>
+                            <option value="shipping_date">Shipping Date</option>
+                            <option value="delivery_notes">Delivery Notes</option>
+                            <option value="contract_date">Contract Date</option>
+                            <option value="commission_rate">Commission Rate</option>
+                            <option value="quantity">Quantity</option>
+                            <option value="uom">UOM</option>
+                            <option value="terms">Contract Terms</option>
+                            <option value="co_broker_name">Co Broker Name</option>
+                            <option value="co_brokerage_rate">Co Brokerage Rate</option>
+                            <option value="seller_reference">Seller Reference</option>
+                            <option value="">-- No field (Yes/No task) --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Existing Templates -->
+    {% if templates %}
+    {% set countries = templates | map(attribute='country') | unique | list %}
+    {% for country in countries %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{{ country }}</h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:60px;">Order</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Books Field</th>
+                        <th style="width:160px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for template in templates if template.country == country %}
+                    <tr id="row-{{ template.id }}">
+                        <!-- View Mode -->
+                        <td class="view-mode-{{ template.id }}">{{ template.order }}</td>
+                        <td class="view-mode-{{ template.id }}">{{ template.title }}</td>
+                        <td class="view-mode-{{ template.id }}">{{ template.description }}</td>
+                        <td class="view-mode-{{ template.id }}">
+                            <code style="color:#4f7a1a;">{{ template.books_field }}</code>
+                        </td>
+
+                        <!-- Edit Mode (hidden by default) -->
+                        <td class="edit-mode-{{ template.id }}" style="display:none;">
+                            <input type="number" class="form-control form-control-sm" id="order-{{ template.id }}" value="{{ template.order }}">
+                        </td>
+                        <td class="edit-mode-{{ template.id }}" style="display:none;">
+                            <input type="text" class="form-control form-control-sm" id="title-{{ template.id }}" value="{{ template.title }}">
+                        </td>
+                        <td class="edit-mode-{{ template.id }}" style="display:none;">
+                            <input type="text" class="form-control form-control-sm" id="description-{{ template.id }}" value="{{ template.description }}">
+                        </td>
+                        <td class="edit-mode-{{ template.id }}" style="display:none;">
+                            <select class="form-select form-select-sm" id="field-{{ template.id }}">
+                                <option value="">-- Select Field --</option>
+                                <option value="buyer" {% if template.books_field == 'buyer' %}selected{% endif %}>Buyer</option>
+                                <option value="seller" {% if template.books_field == 'seller' %}selected{% endif %}>Seller</option>
+                                <option value="commodity" {% if template.books_field == 'commodity' %}selected{% endif %}>Commodity</option>
+                                <option value="commodity_rate" {% if template.books_field == 'commodity_rate' %}selected{% endif %}>Commodity Price</option>
+                                <option value="transportation" {% if template.books_field == 'transportation' %}selected{% endif %}>Transportation</option>
+                                <option value="vessel_name" {% if template.books_field == 'vessel_name' %}selected{% endif %}>Vessel Name</option>
+                                <option value="shipping_date" {% if template.books_field == 'shipping_date' %}selected{% endif %}>Shipping Date</option>
+                                <option value="delivery_notes" {% if template.books_field == 'delivery_notes' %}selected{% endif %}>Delivery Notes</option>
+                                <option value="contract_date" {% if template.books_field == 'contract_date' %}selected{% endif %}>Contract Date</option>
+                                <option value="commission_rate" {% if template.books_field == 'commission_rate' %}selected{% endif %}>Commission Rate</option>
+                                <option value="quantity" {% if template.books_field == 'quantity' %}selected{% endif %}>Quantity</option>
+                                <option value="uom" {% if template.books_field == 'uom' %}selected{% endif %}>UOM</option>
+                                <option value="terms" {% if template.books_field == 'terms' %}selected{% endif %}>Contract Terms</option>
+                                <option value="co_broker_name" {% if template.books_field == 'co_broker_name' %}selected{% endif %}>Co Broker Name</option>
+                                <option value="co_brokerage_rate" {% if template.books_field == 'co_brokerage_rate' %}selected{% endif %}>Co Brokerage Rate</option>
+                                <option value="seller_reference" {% if template.books_field == 'seller_reference' %}selected{% endif %}>Seller Reference</option>
+                            </select>
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="text-center view-mode-{{ template.id }}">
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    onclick="enterEdit({{ template.id }})">Edit</button>
+                            <form method="POST" action="/admin/templates/{{ template.id }}/delete"
+                                  style="display:inline;"
+                                  onsubmit="return confirm('Delete this template?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                        <td class="text-center edit-mode-{{ template.id }}" style="display:none;">
+                            <button class="btn btn-sm btn-success"
+                                    onclick="saveEdit({{ template.id }})">Save</button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    onclick="cancelEdit({{ template.id }})">Cancel</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card">
+        <div class="card-body text-muted">No templates yet. Add one above.</div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+    function enterEdit(id) {
+        document.querySelectorAll(`.view-mode-${id}`).forEach(el => el.style.display = 'none');
+        document.querySelectorAll(`.edit-mode-${id}`).forEach(el => el.style.display = '');
+    }
+
+    function cancelEdit(id) {
+        document.querySelectorAll(`.view-mode-${id}`).forEach(el => el.style.display = '');
+        document.querySelectorAll(`.edit-mode-${id}`).forEach(el => el.style.display = 'none');
+    }
+
+    function saveEdit(id) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/templates/${id}/update`;
+
+        const fields = {
+            order: document.getElementById(`order-${id}`).value,
+            title: document.getElementById(`title-${id}`).value,
+            description: document.getElementById(`description-${id}`).value,
+            books_field: document.getElementById(`field-${id}`).value,
+            country: document.getElementById(`order-${id}`).closest('tr').dataset.country
+        };
+
+        // Get country from the card header instead
+        const row = document.getElementById(`row-${id}`);
+        const cardHeader = row.closest('.card').querySelector('.card-header h5');
+        fields.country = cardHeader ? cardHeader.textContent.trim() : '';
+
+        for (const [key, value] of Object.entries(fields)) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        }
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+
+{% endblock %}

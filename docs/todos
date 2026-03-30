@@ -1,0 +1,4 @@
+TODO: Implement admin only protection for the audit log
+TODO: Resolve the token cache thing, for production use
+TODO: Add a way to delete a user
+TODO: Full fields for post and get so the smart document fills out better.

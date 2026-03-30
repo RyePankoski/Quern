@@ -1,7 +1,33 @@
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 from datetime import datetime
 
 db = SQLAlchemy()
+
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    user = db.Column(db.String(80), nullable=False)
+    method = db.Column(db.String(10), nullable=False)
+    path = db.Column(db.String(255), nullable=False)
+    salesorder_id = db.Column(db.String(100), nullable=True)
+    timestamp = db.Column(db.DateTime, nullable=False)
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
 
 class Customer(db.Model):
     __tablename__ = 'customers'
@@ -9,11 +35,13 @@ class Customer(db.Model):
     customer_id = db.Column(db.String(50), primary_key=True)
     customer_name = db.Column(db.String(200))
 
+
 class Item(db.Model):
     __tablename__ = 'items'
 
     item_id = db.Column(db.String(50), primary_key=True)
     item_name = db.Column(db.String(200))
+
 
 class Employee(db.Model):
     __tablename__ = 'employees'
@@ -25,6 +53,7 @@ class Employee(db.Model):
     position = db.Column(db.String(100))
     salesperson_id = db.Column(db.String(50))
 
+
 class TaskTemplate(db.Model):
     __tablename__ = 'task_templates'
 
@@ -34,6 +63,7 @@ class TaskTemplate(db.Model):
     title = db.Column(db.String(200))
     description = db.Column(db.String(500))
     books_field = db.Column(db.String(100))
+
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -49,4 +79,3 @@ class Task(db.Model):
 
     template = db.relationship('TaskTemplate', backref='tasks')
     employee = db.relationship('Employee', backref='tasks')
-
