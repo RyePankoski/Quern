@@ -5,257 +5,202 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Quern</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css"
           rel="stylesheet">
 
     <style>
+        :root {
+            --brand-green: #4f7a1a;
+            --bg-dark: #1a1a18;
+            --card-bg: #242422;
+            --border-muted: #3a3a38;
+            --text-muted: #888780;
+        }
 
+        /* Select2 Dark Theme Overrides */
         .select2-container--bootstrap-5 .select2-selection {
-    background-color: #2c2c2a;
-    border-color: #3a3a38;
-    color: #d3d1c7;
-}
-
-.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-    color: #d3d1c7;
-}
-
-.select2-container--bootstrap-5 .select2-dropdown {
-    background-color: #2c2c2a;
-    border-color: #3a3a38;
-}
-
-.select2-container--bootstrap-5 .select2-results__option {
-    color: #d3d1c7;
-}
-
-.select2-container--bootstrap-5 .select2-results__option--highlighted {
-    background-color: #4f7a1a;
-    color: #fff;
-}
-
-.select2-container--bootstrap-5 .select2-search__field {
-    background-color: #1a1a18;
-    color: #d3d1c7;
-    border-color: #3a3a38;
-}
-
-        body {
-            background-color: #1a1a18;
+            background-color: #2c2c2a;
+            border-color: var(--border-muted);
+            color: #d3d1c7;
         }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered { color: #d3d1c7; }
+        .select2-container--bootstrap-5 .select2-dropdown { background-color: #2c2c2a; border-color: var(--border-muted); }
+        .select2-container--bootstrap-5 .select2-results__option { color: #d3d1c7; }
+        .select2-container--bootstrap-5 .select2-results__option--highlighted { background-color: var(--brand-green); color: #fff; }
+        .select2-container--bootstrap-5 .select2-search__field { background-color: #1a1a18; color: #d3d1c7; border-color: var(--border-muted); }
 
-        html, body {
-            min-height: 100vh;
-            background-color: #1a1a18;
-        }
+        /* Global Styles */
+        body { background-color: var(--bg-dark); min-height: 100vh; color: #d3d1c7; }
 
-        .card {
-            background-color: #242422;
-            border-color: #3a3a38;
-        }
-
+        .card { background-color: var(--card-bg); border-color: var(--border-muted); }
         .card-header {
             background-color: #2c2c2a;
-            border-color: #3a3a38;
-            font-size: 0.85rem;
+            border-color: var(--border-muted);
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.08em;
+            font-weight: 600;
         }
 
+        .form-control, .form-select { background-color: #1a1a18; border-color: var(--border-muted); color: #fff; }
         .form-control:focus, .form-select:focus {
-            border-color: #4f7a1a;
-            box-shadow: 0 0 0 0.2rem rgba(99,153,34,0.25);
+            border-color: var(--brand-green);
+            box-shadow: 0 0 0 0.25rem rgba(79, 122, 26, 0.25);
+            background-color: #1a1a18;
+            color: #fff;
         }
 
-        .form-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.3rem;
-        }
+        .form-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; color: var(--text-muted); }
+        .btn-success { background-color: var(--brand-green); border-color: var(--brand-green); }
+        .btn-success:hover { background-color: #5d8e20; border-color: #5d8e20; }
 
-        .table-dark th {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            font-weight: 500;
-        }
-
-        .btn-success {
-            background-color: #4f7a1a;
-            border-color: #4f7a1a;
-        }
-
-        .btn-success:hover {
-            background-color: #4f7a1a;
-            border-color: #4f7a1a;
-        }
-
-        .navbar {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-            padding-top: 0.6rem;
-            padding-bottom: 0.6rem;
-            background-color: #111110 !important;
-        }
-
-        .navbar img {
-            margin-right: 12px;
-        }
-
+        /* Navbar Enhancement */
+        .navbar { background-color: #111110 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 0.5rem 1rem; }
         .navbar-nav .nav-link {
-            font-size: 1rem;
             font-weight: 500;
-            padding: 0.7rem 1.2rem;
-            margin: 0 0.2rem;
-            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
             position: relative;
-            transition: all 0.2s ease;
-            letter-spacing: 0.03em;
         }
+        .navbar-nav .nav-link:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .navbar-nav .nav-link.active { background: rgba(79, 122, 26, 0.15); color: var(--brand-green) !important; }
 
-        .navbar-nav .nav-link:hover {
-            background-color: rgba(255,255,255,0.05);
-        }
-
-        .navbar-nav .nav-link::after {
-            content: "";
-            position: absolute;
-            left: 20%;
-            bottom: 6px;
-            width: 60%;
-            height: 2px;
-            background: #4f7a1a;
-            transform: scaleX(0);
-            transition: transform 0.2s ease;
-        }
-
-        .navbar-nav .nav-link:hover::after {
-            transform: scaleX(1);
-        }
-
-        .navbar-nav .nav-link.active {
-            background-color: rgba(99,153,34,0.12);
-        }
-
-        .navbar-nav .nav-link.active::after {
-            transform: scaleX(1);
-        }
-
-        h2.fw-semibold {
-            color: #4f7a1a;
-        }
-
+        /* Loading Sway Animation */
         @keyframes sway {
-            0%   { transform: rotate(-3deg) skewX(-3deg); }
-            50%  { transform: rotate(3deg) skewX(3deg); }
-            100% { transform: rotate(-3deg) skewX(-3deg); }
+            0%   { transform: rotate(-3deg); }
+            50%  { transform: rotate(3deg); }
+            100% { transform: rotate(-3deg); }
+        }
+
+        #loading-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(14,14,12,0.95); z-index: 9999;
+            align-items: center; justify-content: center;
+            flex-direction: column; gap: 20px;
         }
     </style>
 </head>
-
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark">
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
     <div class="container-fluid">
-        <a class="navbar-brand p-0" href="/">
-            <img src="{{ url_for('static', filename='img/logo_small.png') }}" height="50">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <img src="{{ url_for('static', filename='img/logo_small.png') }}" height="45" class="me-2">
         </a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div class="collapse navbar-collapse justify-content-center" id="navbarNav">
-            <div class="navbar-nav">
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <div class="navbar-nav ms-auto me-auto">
                 <a class="nav-link" href="/">Home</a>
+                <a class="nav-link" href="/dashboard">Dashboard</a>
                 <a class="nav-link" href="/new_contract">New Contract</a>
                 <a class="nav-link" href="/tasks">Tasks</a>
                 <a class="nav-link" href="/contracts">Contracts</a>
                 <a class="nav-link" href="/counterparties">Counterparties</a>
                 <a class="nav-link" href="/items">Items</a>
                 <a class="nav-link" href="/employees">Employees</a>
-                <a class="nav-link" href="/admin/templates"
-                   style="color:#c8961a;">Templates</a>
-                <a class="nav-link" href="/logout">Sign Out</a>
-                <a href="/admin/audit"
-                   style="position:fixed; bottom:2rem; right:2rem; z-index:3500; padding:0.75rem 1.5rem;"
-                   class="btn btn-danger"
-                   data-no-overlay>Audit</a>
-
+                <a class="nav-link" href="/admin/templates" style="color:#c8961a;">Templates</a>
+            </div>
+            <div class="navbar-nav">
+                <a class="nav-link text-danger" href="/logout">Sign Out</a>
             </div>
         </div>
     </div>
 </nav>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-{% if messages %}
-{% for category, message in messages %}
-{% if category != 'success' and category != 'update' %}
-<div class="alert alert-{{ category }} alert-dismissible fade show m-3" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="container-fluid mt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    {% set btn_class = 'danger' if category == 'error' else category %}
+    <div class="alert alert-{{ btn_class }} alert-dismissible fade show shadow-sm" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
 </div>
-{% endif %}
-{% endfor %}
-{% endif %}
-{% endwith %}
 
+<main>
+    {% block content %}{% endblock %}
+</main>
 
-{% block content %}{% endblock %}
+<a href="/admin/audit" class="btn btn-danger shadow"
+   style="position:fixed; bottom:2rem; right:2rem; z-index:3500; padding:0.75rem 1.5rem; border-radius: 50px;"
+   data-no-overlay>Audit System</a>
 
-<div id="loading-overlay"
-     style="display:none; position:fixed; inset:0; background:rgba(14,14,12,0.9); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+<div id="loading-overlay">
     <img src="{{ url_for('static', filename='img/loading.png') }}"
-         style="width:160px; height:auto; transform-origin: center 110%; animation: sway 2.2s ease-in-out infinite;">
-    <span style="color:#888780; font-size:13px; letter-spacing:0.08em;">Loading</span>
+         style="width:140px; animation: sway 2.2s ease-in-out infinite;">
+    <span style="color:var(--text-muted); font-size:14px; letter-spacing:0.1em; text-transform: uppercase;">Processing...</span>
 </div>
 
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
     $(document).ready(function() {
-        $('select[name="buyer"], select[name="seller"], select[name="commodity"], select[name="assigned_to"], select[name="broker_employee"]').select2({
+        // Universal Select2 Initialization
+        // Tip: Add class="select2-enable" to any <select> in your child templates
+        $('.select2-enable, select[name="buyer"], select[name="seller"], select[name="commodity"], select[name="assigned_to"], select[name="broker_employee"]').select2({
             theme: 'bootstrap-5',
             width: '100%'
         });
-    });
 
-        window.addEventListener('load', () => {
-            document.getElementById('loading-overlay').style.display = 'none';
-        });
+        const overlay = document.getElementById('loading-overlay');
+        function showOverlay() { overlay.style.display = 'flex'; }
+        function hideOverlay() { overlay.style.display = 'none'; }
 
-        document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
-            if (link.getAttribute('href') === window.location.pathname) {
-                document.querySelectorAll('.navbar-nav .nav-link').forEach(l => l.classList.remove('active'));
-                link.classList.add('active');
+        // Hide overlay on page load/back-forward cache
+        window.addEventListener('pageshow', hideOverlay);
+        hideOverlay();
+
+        // Active Link Highlighting
+        const currentPath = window.location.pathname;
+        $('.navbar-nav .nav-link').each(function() {
+            if ($(this).attr('href') === currentPath) {
+                $(this).addClass('active');
             }
         });
 
-        const overlay = document.getElementById('loading-overlay');
-
-        function showOverlay() {
-            overlay.style.display = 'flex';
-        }
-
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', showOverlay);
+        // Smart Overlay Trigger
+        $('a[href]').on('click', function(e) {
+            const href = $(this).attr('href');
+            // Don't show overlay for: new tabs, hash links, data-no-overlay, or logout
+            if (
+                href &&
+                href !== '#' &&
+                !href.startsWith('javascript') &&
+                !e.ctrlKey && !e.metaKey && e.which !== 2 &&
+                !$(this).hasAttribute('data-no-overlay')
+            ) {
+                showOverlay();
+            }
         });
 
-        document.querySelectorAll('tr[onclick]').forEach(row => {
-            row.addEventListener('click', showOverlay);
+        $('form').on('submit', function() {
+            // Only show if the form is valid (for browser-side validation)
+            if (this.checkValidity()) {
+                showOverlay();
+            }
         });
 
-            document.querySelectorAll('a[href]').forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && href !== '#' && !link.hasAttribute('data-no-overlay')) {
-                    link.addEventListener('click', showOverlay);
-                }
-            });
+        // Trigger overlay for clickable table rows
+        $('tr[onclick]').on('click', showOverlay);
+    });
+
+    // Helper to check attributes in jQuery
+    $.fn.hasAttribute = function(name) {
+        return this.attr(name) !== undefined;
+    };
 </script>
 
 </body>

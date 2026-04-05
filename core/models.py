@@ -31,16 +31,22 @@ class User(UserMixin, db.Model):
 
 class Customer(db.Model):
     __tablename__ = 'customers'
-
-    customer_id = db.Column(db.String(50), primary_key=True)
+    customer_id = db.Column(db.String(100), primary_key=True)
     customer_name = db.Column(db.String(200))
+    email = db.Column(db.String(200), nullable=True)
+    phone = db.Column(db.String(100), nullable=True)
+    address = db.Column(db.String(500), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+    country = db.Column(db.String(100), nullable=True)
+    zip = db.Column(db.String(50), nullable=True)
 
 
 class Item(db.Model):
     __tablename__ = 'items'
-
-    item_id = db.Column(db.String(50), primary_key=True)
+    item_id = db.Column(db.String(100), primary_key=True)
     item_name = db.Column(db.String(200))
+    description = db.Column(db.String(500), nullable=True)
 
 
 class Employee(db.Model):
@@ -79,3 +85,18 @@ class Task(db.Model):
 
     template = db.relationship('TaskTemplate', backref='tasks')
     employee = db.relationship('Employee', backref='tasks')
+
+class ContractMeta(db.Model):
+    __tablename__ = 'contract_meta'
+    id = db.Column(db.Integer, primary_key=True)
+    books_sales_order_id = db.Column(db.String(100), unique=True, nullable=False)
+    in_network = db.Column(db.Boolean, nullable=True)
+
+
+class Shipment(db.Model):
+    __tablename__ = 'shipments'
+    id = db.Column(db.Integer, primary_key=True)
+    books_sales_order_id = db.Column(db.String(100), nullable=False)
+    vessel_name = db.Column(db.String(200), nullable=True)
+    booking_number = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

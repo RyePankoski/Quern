@@ -44,7 +44,6 @@
                 <th>Seller</th>
                 <th>Status</th>
                 <th>Date</th>
-                <th class="d-none d-md-table-cell">Books ID</th>
             </tr>
             </thead>
             <tbody id="contracts-tbody">
@@ -61,7 +60,6 @@
                 <td>{{ contract['customer_name'] }}</td>
                 <td>{{ contract['status'] }}</td>
                 <td>{{ contract['date'] }}</td>
-                <td class="d-none d-md-table-cell">{{ contract['salesorder_id'] }}</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -126,7 +124,6 @@
                             <td>${contract.customer_name || ''}</td>
                             <td>${contract.status || ''}</td>
                             <td>${contract.date || ''}</td>
-                            <td class="d-none d-md-table-cell">${contract.salesorder_id || ''}</td>
                         `;
                         tbody.appendChild(tr);
                     });

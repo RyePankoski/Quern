@@ -1,0 +1,70 @@
+{% extends 'base_login.html' %}
+{% block content %}
+
+<div class="container py-4" style="max-width: 800px;">
+
+    <div class="mb-4">
+        <h2 class="fw-semibold mb-0">Dev Panel</h2>
+        <p style="color:#888780; font-size:0.85rem;">Development utilities.</p>
+    </div>
+
+    <!-- Actions -->
+    <div class="card mb-4">
+        <div class="card-header">Actions</div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-outline-secondary" onclick="runAction('first_time_startup')">First Time Startup</button>
+                <button class="btn btn-outline-secondary" onclick="runAction('sync_items')">Sync Items</button>
+                <button class="btn btn-outline-secondary" onclick="runAction('sync_customers')">Sync Customers</button>
+                <button class="btn btn-outline-secondary" onclick="runAction('sync_employees')">Sync Employees</button>
+                <button class="btn btn-outline-secondary" onclick="runAction('seed_tasks')">Seed Tasks</button>
+                <button class="btn btn-outline-secondary" onclick="runAction('create_user')">Create User</button>
+                <button class="btn btn-outline-danger" onclick="runAction('wipe_tasks')">Wipe Tasks</button>
+                <button class="btn btn-outline-danger" onclick="runAction('wipe_audit')">Wipe Audit</button>
+                <button class="btn btn-outline-danger" onclick="runAction('wipe_users')">Wipe Users</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug -->
+    <div class="card mb-4">
+        <div class="card-header">Debug</div>
+        <div class="card-body">
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-secondary" onclick="runDebug('first_contract')">First Contract</button>
+                <button class="btn btn-outline-secondary" onclick="runDebug('locations')">Locations</button>
+            </div>
+            <textarea id="debug-output"
+                      class="form-control"
+                      rows="12"
+                      readonly
+                      placeholder="Output will appear here..."
+                      style="font-family: monospace; font-size: 0.8rem; background-color:#1a1a18; color:#d3d1c7; border-color:#3a3a38;"></textarea>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function setOutput(text) {
+        document.getElementById('debug-output').value = text;
+    }
+
+    function runAction(action) {
+        setOutput('Running...');
+        fetch(`/dev/action/${action}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => setOutput(data.result || JSON.stringify(data, null, 2)))
+            .catch(err => setOutput('Error: ' + err));
+    }
+
+    function runDebug(target) {
+        setOutput('Loading...');
+        fetch(`/dev/debug/${target}`)
+            .then(res => res.json())
+            .then(data => setOutput(JSON.stringify(data, null, 2)))
+            .catch(err => setOutput('Error: ' + err));
+    }
+</script>
+
+{% endblock %}

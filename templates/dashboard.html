@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="mb-4">
+        <h2 class="fw-semibold mb-0">Dashboard</h2>
+        <p class="text-muted">Based on most recent 200 contracts.</p>
+    </div>
+
+    <!-- Total Commission -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Total Commission</h5>
+        </div>
+        <div class="card-body">
+            {% set total = contracts | sum(attribute='total') %}
+            <p style="font-size:2rem; font-weight:600; color:#4f7a1a; margin:0;">
+                ${{ "{:,.2f}".format(total) }}
+            </p>
+            <p class="text-muted" style="font-size:0.85rem;">Sum of commission rate × quantity across all loaded contracts</p>
+        </div>
+    </div>
+
+    <!-- By Month -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">By Month</h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Month</th>
+                        <th>Contracts</th>
+                        <th>Total Commission</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set months = {} %}
+                    {% for contract in contracts %}
+                        {% if contract.date %}
+                            {% set month = contract.date[:7] %}
+                            {% if month not in months %}
+                                {% set _ = months.update({month: {'count': 0, 'total': 0}}) %}
+                            {% endif %}
+                            {% set _ = months[month].update({'count': months[month]['count'] + 1, 'total': months[month]['total'] + contract.total}) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for month in months | sort(reverse=True) %}
+                    <tr>
+                        <td>{{ month }}</td>
+                        <td>{{ months[month]['count'] }}</td>
+                        <td style="color:#4f7a1a;">${{ "{:,.2f}".format(months[month]['total']) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- By Office -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">By Office</h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Office</th>
+                        <th>Contracts</th>
+                        <th>Total Commission</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set offices = {} %}
+                    {% for contract in contracts %}
+                        {% set office = contract.get('location_name') or 'Unknown' %}
+                        {% if office not in offices %}
+                            {% set _ = offices.update({office: {'count': 0, 'total': 0}}) %}
+                        {% endif %}
+                        {% set _ = offices[office].update({'count': offices[office]['count'] + 1, 'total': offices[office]['total'] + contract.total}) %}
+                    {% endfor %}
+                    {% for office in offices | sort %}
+                    <tr>
+                        <td>{{ office }}</td>
+                        <td>{{ offices[office]['count'] }}</td>
+                        <td style="color:#4f7a1a;">${{ "{:,.2f}".format(offices[office]['total']) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

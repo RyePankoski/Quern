@@ -1,7 +1,7 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from flask import Flask, render_template, request, redirect, flash, send_file
-from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog
+from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment
 from core.tasks import generate_tasks, check_task_reactivity
 from core.pdf import generate_contract_pdf
 from datetime import datetime
@@ -41,6 +41,28 @@ def counterparties():
     return render_template('counterparties.html', customers=customers)
 
 
+@app.route('/counterparties/<customer_id>')
+@login_required
+def counterparty_detail(customer_id):
+    customer = Customer.query.get(customer_id)
+    if not customer:
+        flash('Counterparty not found.', 'danger')
+        return redirect('/counterparties')
+
+    # Fetch all contracts and filter by buyer or seller
+    orders = get_sales_orders()
+    customer_map = {c.customer_id: c.customer_name for c in Customer.query.all()}
+
+    contracts = []
+    for order in orders:
+        buyer_id = order.get('cf_buyer', '')
+        order['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
+        if order.get('customer_id') == customer_id or buyer_id == customer_id:
+            contracts.append(order)
+
+    return render_template('counterparty_detail.html', customer=customer, contracts=contracts)
+
+
 @app.route('/employees')
 @login_required
 def employees_view():
@@ -60,7 +82,8 @@ def new_contract():
     if duplicate_id:
         raw = zoho.get_sales_order(duplicate_id)
         prefill = zoho.contract_to_form_data(raw)
-    return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill, locations=locations)
+    return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill,
+                           locations=locations)
 
 
 @app.route('/bulk_edit')
@@ -90,23 +113,25 @@ def contracts():
 @login_required
 def contract_detail(salesorder_id):
     contract = zoho.get_sales_order(salesorder_id)
-
     custom_fields = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
     contract['custom'] = custom_fields
 
     customers = Customer.query.all()
     customer_map = {c.customer_id: c.customer_name for c in customers}
-
     buyer_id = contract['custom'].get('cf_buyer', '')
     contract['custom']['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
 
     items = Item.query.all()
-
     tasks = Task.query.filter_by(
         books_sales_order_id=salesorder_id
     ).join(TaskTemplate).order_by(TaskTemplate.order).all()
 
-    return render_template('contract_detail.html', contract=contract, customers=customers, items=items, tasks=tasks)
+    meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+    shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
+
+    return render_template('contract_detail.html',
+                           contract=contract, customers=customers, items=items,
+                           tasks=tasks, meta=meta, shipments=shipments)
 
 
 @app.route('/tasks')
@@ -154,6 +179,27 @@ def submit_contract_route():
         salesorder_number = result['salesorder']['salesorder_number']
         office = request.form.get('location_name', 'Head Office')
         generate_tasks(salesorder_id, country=office)
+
+        # Save local meta
+        in_network_val = request.form.get('in_network')
+        meta = ContractMeta(
+            books_sales_order_id=salesorder_id,
+            in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None
+        )
+        db.session.add(meta)
+
+        # Save shipments
+        vessel_names = request.form.getlist('vessel_name[]')
+        booking_numbers = request.form.getlist('booking_number[]')
+        for vessel, booking in zip(vessel_names, booking_numbers):
+            if vessel or booking:
+                db.session.add(Shipment(
+                    books_sales_order_id=salesorder_id,
+                    vessel_name=vessel,
+                    booking_number=booking
+                ))
+        db.session.commit()
+
         log = AuditLog(
             user=current_user.username,
             method='POST',
@@ -198,6 +244,28 @@ def update_contract(salesorder_id):
     result = zoho.update_contract(salesorder_id, request.form)
     if result.get('code', 0) == 0:
         check_task_reactivity(salesorder_id, request.form)
+
+        # Save local meta
+        meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+        if not meta:
+            meta = ContractMeta(books_sales_order_id=salesorder_id)
+            db.session.add(meta)
+        in_network_val = request.form.get('in_network')
+        meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
+
+        # Replace shipments
+        Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
+        vessel_names = request.form.getlist('vessel_name[]')
+        booking_numbers = request.form.getlist('booking_number[]')
+        for vessel, booking in zip(vessel_names, booking_numbers):
+            if vessel or booking:
+                db.session.add(Shipment(
+                    books_sales_order_id=salesorder_id,
+                    vessel_name=vessel,
+                    booking_number=booking
+                ))
+        db.session.commit()
+
         salesorder_number = result['salesorder']['salesorder_number']
         return redirect(f'/submit_success/{salesorder_id}?number={salesorder_number}&action=updated')
     else:
@@ -411,16 +479,154 @@ def contracts_json():
     return {'contracts': orders, 'page': page}
 
 
+# Dev page stuff
+
+@app.route('/dev')
+@login_required
+def dev_panel():
+    return render_template('dev.html')
+
+
+@app.route('/dev/action/<action>', methods=['POST'])
+@login_required
+def dev_action(action):
+    with app.app_context():
+        if action == 'wipe_tasks':
+            result = wipe_tasks()
+        elif action == 'seed_tasks':
+            result = seed_tasks()
+        elif action == 'sync_items':
+            sync_items()
+            result = 'Items synced.'
+        elif action == 'sync_customers':
+            sync_customers()
+            result = 'Customers synced.'
+        elif action == 'sync_employees':
+            sync_employees()
+            result = 'Employees synced.'
+        elif action == 'create_user':
+            result = create_user()
+        elif action == 'wipe_audit':
+            result = wipe_audit()
+        elif action == 'wipe_users':
+            result = wipe_users()
+        elif action == 'first_time_startup':
+            first_time_startup()
+            result = 'First time startup complete.'
+        else:
+            result = f'Unknown action: {action}'
+    return {'result': str(result)}
+
+
+@app.route('/dev/debug/<target>')
+@login_required
+def dev_debug(target):
+    if target == 'first_contract':
+        result = debug_first_contract()
+    elif target == 'locations':
+        result = debug_locations()
+    else:
+        result = {'error': f'Unknown debug target: {target}'}
+    return result
+
+
+# Local contract data
+
+@app.route('/contracts/<salesorder_id>/meta', methods=['POST'])
+@login_required
+def save_contract_meta(salesorder_id):
+    meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+    if not meta:
+        meta = ContractMeta(books_sales_order_id=salesorder_id)
+        db.session.add(meta)
+
+    in_network_val = request.form.get('in_network')
+    if in_network_val == 'true':
+        meta.in_network = True
+    elif in_network_val == 'false':
+        meta.in_network = False
+    else:
+        meta.in_network = None
+
+    # Wipe and replace shipments
+    Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
+    vessel_names = request.form.getlist('vessel_name[]')
+    booking_numbers = request.form.getlist('booking_number[]')
+    for vessel, booking in zip(vessel_names, booking_numbers):
+        if vessel or booking:
+            shipment = Shipment(
+                books_sales_order_id=salesorder_id,
+                vessel_name=vessel,
+                booking_number=booking
+            )
+            db.session.add(shipment)
+
+    db.session.commit()
+    return redirect(request.referrer or f'/contracts/{salesorder_id}')
+
+
+@app.route('/contracts/<salesorder_id>/shipments/add', methods=['POST'])
+@login_required
+def add_shipment(salesorder_id):
+    data = request.get_json()
+    shipment = Shipment(
+        books_sales_order_id=salesorder_id,
+        vessel_name=data.get('vessel_name', ''),
+        booking_number=data.get('booking_number', '')
+    )
+    db.session.add(shipment)
+    db.session.commit()
+    return {'ok': True, 'id': shipment.id}
+
+
+@app.route('/contracts/shipments/<int:shipment_id>/delete', methods=['POST'])
+@login_required
+def delete_shipment(shipment_id):
+    shipment = Shipment.query.get(shipment_id)
+    if not shipment:
+        return {'ok': False}, 404
+    db.session.delete(shipment)
+    db.session.commit()
+    return {'ok': True}
+
+
+# Dashboard
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    orders = get_sales_orders(page=1)
+
+    total = sum(o.get('total', 0) for o in orders)
+
+    by_month = {}
+    by_office = {}
+    for o in orders:
+        month = o.get('date', '')[:7] if o.get('date') else 'Unknown'
+        office = o.get('location_name') or 'Unknown'
+
+        by_month.setdefault(month, {'count': 0, 'total': 0})
+        by_month[month]['count'] += 1
+        by_month[month]['total'] += o.get('total', 0)
+
+        by_office.setdefault(office, {'count': 0, 'total': 0})
+        by_office[office]['count'] += 1
+        by_office[office]['total'] += o.get('total', 0)
+
+    by_month = dict(sorted(by_month.items(), reverse=True))
+    by_office = dict(sorted(by_office.items()))
+
+    return render_template('dashboard.html', contracts=orders, total=total, by_month=by_month, by_office=by_office)
+
+
 # Functions
 
 def first_time_startup():
     wipe_tasks()
     seed_tasks()
-
     sync_items()
     sync_customers()
     sync_employees()
-
     create_user()
 
 
@@ -429,7 +635,7 @@ def create_user():
         return 'User already exists'
     user = User()
     user.username = 'admin'
-    user.set_password('changeme')
+    user.set_password('rdp96')
     db.session.add(user)
     db.session.commit()
     return redirect('/logout')
@@ -461,13 +667,41 @@ def debug_first_contract():
     contract = zoho.get_sales_order(first_id)
     return contract
 
+
 def debug_locations():
     return {'locations': zoho.get_locations()}
+
+
+@app.route('/debug/contracts_list')
+def debug_contracts_list():
+    orders = get_sales_orders(page=1)
+    return orders[0] if orders else {}
+
+
+@app.route('/debug/customers')
+def debug_customers():
+    token = zoho.get_access_token()
+    import requests
+    response = requests.get(
+        "https://www.zohoapis.com/books/v3/contacts",
+        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        params={"organization_id": zoho.ORG_ID, "contact_type": "customer", "per_page": 1}
+    )
+    return response.json()
+
+@app.route('/debug/items')
+def debug_items():
+    token = zoho.get_access_token()
+    import requests
+    response = requests.get(
+        "https://www.zohoapis.com/books/v3/items",
+        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        params={"organization_id": zoho.ORG_ID, "per_page": 200}
+    )
+    return response.json()
 
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        print(debug_locations())
-
     app.run(debug=True, host='0.0.0.0')
