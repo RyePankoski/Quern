@@ -34,16 +34,42 @@ def sync_customers():
         if not contacts:
             break
 
+        contract_no = 0
+
         for contact in contacts:
+            contract_no += 1
+            print(f"Syncing {contact['contact_name']}... + {contract_no}")
+            # Fetch full contact detail for address
+            detail_response = requests.get(
+                f"https://www.zohoapis.com/books/v3/contacts/{contact['contact_id']}",
+                headers={"Authorization": f"Zoho-oauthtoken {token}"},
+                params={"organization_id": ORG_ID}
+            )
+            detail = detail_response.json().get('contact', {})
+            billing = detail.get('billing_address', {})
+
             existing = Customer.query.get(contact['contact_id'])
             if existing:
                 existing.customer_name = contact['contact_name']
+                existing.email = contact.get('email', '')
+                existing.phone = contact.get('phone', '')
+                existing.address = billing.get('address', '')
+                existing.city = billing.get('city', '')
+                existing.state = billing.get('state', '')
+                existing.country = billing.get('country', '')
+                existing.zip = billing.get('zip', '')
             else:
-                new_customer = Customer(
+                db.session.add(Customer(
                     customer_id=contact['contact_id'],
-                    customer_name=contact['contact_name']
-                )
-                db.session.add(new_customer)
+                    customer_name=contact['contact_name'],
+                    email=contact.get('email', ''),
+                    phone=contact.get('phone', ''),
+                    address=billing.get('address', ''),
+                    city=billing.get('city', ''),
+                    state=billing.get('state', ''),
+                    country=billing.get('country', ''),
+                    zip=billing.get('zip', '')
+                ))
 
         db.session.commit()
         page += 1
@@ -86,26 +112,35 @@ def sync_items():
         existing = Item.query.get(item['id'])
         if existing:
             existing.item_name = item['name']
+            existing.description = item.get('description', '')
         else:
             new_item = Item(
                 item_id=item['id'],
-                item_name=item['name']
+                item_name=item['name'],
+                description=item.get('description', '')
             )
             db.session.add(new_item)
     db.session.commit()
-
 
 # Getters
 
 def get_items():
     coin = get_access_token()
-    response = requests.get(
-        "https://www.zohoapis.com/books/v3/items",
-        headers={"Authorization": f"Zoho-oauthtoken {coin}"},
-        params={"organization_id": ORG_ID, "contact_type": "customer", "per_page": 200}
-    )
-    items = response.json().get('items', [])
-    return [{"id": item["item_id"], "name": item["item_name"]} for item in items]
+    items = []
+    page = 1
+    while True:
+        response = requests.get(
+            "https://www.zohoapis.com/books/v3/items",
+            headers={"Authorization": f"Zoho-oauthtoken {coin}"},
+            params={"organization_id": ORG_ID, "per_page": 200, "page": page}
+        )
+        data = response.json()
+        page_items = data.get('items', [])
+        items.extend(page_items)
+        if not data.get('page_context', {}).get('has_more_page', False):
+            break
+        page += 1
+    return [{"id": item["item_id"], "name": item["item_name"], "description": item.get("description", "")} for item in items]
 
 
 def get_customers():

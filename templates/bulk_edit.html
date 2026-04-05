@@ -21,6 +21,28 @@
     </div>
 
     <div id="table-wrapper" style="display:none;">
+
+        <!-- Filter Bar -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
+            </div>
+            <div class="col-6 col-md-3">
+                <input type="text" id="filter-buyer" class="form-control form-control-sm" placeholder="Buyer">
+            </div>
+            <div class="col-6 col-md-3">
+                <input type="text" id="filter-seller" class="form-control form-control-sm" placeholder="Seller">
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="filter-status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    <option>draft</option>
+                    <option>confirmed</option>
+                    <option>void</option>
+                </select>
+            </div>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-bordered table-hover">
                 <thead class="table-dark">
@@ -37,13 +59,15 @@
                     <tr
                         data-id="{{ contract['salesorder_id'] }}"
                         data-vessel="{{ contract.get('cf_vessel_name', '') }}"
-                        data-quantity="">
+                        data-quantity=""
+                        data-number="{{ contract['salesorder_number'] | lower }}"
+                        data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
+                        data-seller="{{ contract['customer_name'] | lower }}"
+                        data-status="{{ contract['status'] | lower }}">
                         <td>{{ contract['salesorder_number'] }}</td>
                         <td>{{ contract.get('cf_buyer', '') }}</td>
                         <td>{{ contract['customer_name'] }}</td>
-                        <td class="value-cell">
-                            <!-- input injected by JS -->
-                        </td>
+                        <td class="value-cell"></td>
                         <td class="text-center">
                             <button
                                 class="btn btn-sm save-btn"
@@ -62,8 +86,6 @@
 </div>
 
 <script>
-    // Embed contract line item data for quantity (not available in list endpoint)
-    // quantity will be blank until user edits — that's acceptable for bulk edit
     const fieldLabels = {
         vessel_name: 'Vessel Name',
         quantity: 'Quantity'
@@ -73,6 +95,25 @@
     const tableWrapper = document.getElementById('table-wrapper');
     const fieldColHeader = document.getElementById('field-col-header');
     const rows = document.querySelectorAll('#bulk-tbody tr');
+
+    function applyFilters() {
+        const number = document.getElementById('filter-number').value.toLowerCase();
+        const buyer = document.getElementById('filter-buyer').value.toLowerCase();
+        const seller = document.getElementById('filter-seller').value.toLowerCase();
+        const status = document.getElementById('filter-status').value.toLowerCase();
+
+        rows.forEach(row => {
+            const matchNumber = !number || row.dataset.number.includes(number);
+            const matchBuyer = !buyer || row.dataset.buyer.includes(buyer);
+            const matchSeller = !seller || row.dataset.seller.includes(seller);
+            const matchStatus = !status || row.dataset.status === status;
+            row.style.display = (matchNumber && matchBuyer && matchSeller && matchStatus) ? '' : 'none';
+        });
+    }
+
+    ['filter-number', 'filter-buyer', 'filter-seller', 'filter-status'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
+    });
 
     fieldSelect.addEventListener('change', () => {
         const field = fieldSelect.value;
@@ -99,34 +140,11 @@
             input.value = currentVal;
             input.dataset.original = currentVal;
 
-            input.addEventListener('input', () => {
-                const dirty = input.value !== input.dataset.original;
-                if (dirty) {
-                    saveBtn.style.backgroundColor = '#4f7a1a';
-                    saveBtn.style.borderColor = '#4f7a1a';
-                    saveBtn.style.color = '#fff';
-                    saveBtn.disabled = false;
-                } else {
-                    saveBtn.style.backgroundColor = '#3a3a38';
-                    saveBtn.style.borderColor = '#3a3a38';
-                    saveBtn.style.color = '#888780';
-                    saveBtn.disabled = true;
-                }
-            });
-
             valueCell.innerHTML = '';
             valueCell.appendChild(input);
 
-            // Reset save button state
-            saveBtn.style.backgroundColor = '#3a3a38';
-            saveBtn.style.borderColor = '#3a3a38';
-            saveBtn.style.color = '#888780';
-            saveBtn.disabled = true;
-
-            // Rebind save handler
             const newBtn = saveBtn.cloneNode(true);
             saveBtn.parentNode.replaceChild(newBtn, saveBtn);
-
             newBtn.style.backgroundColor = '#3a3a38';
             newBtn.style.borderColor = '#3a3a38';
             newBtn.style.color = '#888780';
@@ -134,17 +152,10 @@
 
             input.addEventListener('input', () => {
                 const dirty = input.value !== input.dataset.original;
-                if (dirty) {
-                    newBtn.style.backgroundColor = '#4f7a1a';
-                    newBtn.style.borderColor = '#4f7a1a';
-                    newBtn.style.color = '#fff';
-                    newBtn.disabled = false;
-                } else {
-                    newBtn.style.backgroundColor = '#3a3a38';
-                    newBtn.style.borderColor = '#3a3a38';
-                    newBtn.style.color = '#888780';
-                    newBtn.disabled = true;
-                }
+                newBtn.style.backgroundColor = dirty ? '#4f7a1a' : '#3a3a38';
+                newBtn.style.borderColor = dirty ? '#4f7a1a' : '#3a3a38';
+                newBtn.style.color = dirty ? '#fff' : '#888780';
+                newBtn.disabled = !dirty;
             });
 
             newBtn.addEventListener('click', () => {
@@ -194,6 +205,8 @@
                 });
             });
         });
+
+        applyFilters();
     });
 </script>
 

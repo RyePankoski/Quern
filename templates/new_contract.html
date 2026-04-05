@@ -51,7 +51,7 @@
                             <option value="{{ item.item_id }}"
                                     {% if prefill and prefill[
                             'commodity'] == item.item_id %}selected{% endif %}>
-                            {{ item.item_name }}
+                            {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -235,6 +235,28 @@
             </div>
         </div>
 
+        <!-- Shipments -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Shipments</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>Vessel Name</th>
+                        <th>Booking Number</th>
+                        <th style="width:50px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody id="shipments-body"></tbody>
+                </table>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add
+                    Shipment
+                </button>
+            </div>
+        </div>
+
         <!-- Contract Tasks -->
         <div class="card mb-4">
             <div class="card-header">
@@ -285,7 +307,7 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Office</label>
                         <select class="form-select" name="location_id" id="location_select">
                             <option value="">-- Select Office --</option>
@@ -300,7 +322,15 @@
                         </select>
                         <input type="hidden" name="location_name" id="location_name">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Network</label>
+                        <select class="form-select" name="in_network">
+                            <option value="">-- Select --</option>
+                            <option value="true">In Network</option>
+                            <option value="false">Out of Network</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Contract Status</label>
                         <select class="form-select" name="contract_status">
                             <option value="">-- Select --</option>
@@ -312,7 +342,7 @@
                             <option>Paid</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Seller Reference Number</label>
                         <input type="text" class="form-control" name="seller_reference"
                                placeholder="Enter reference number"
@@ -343,11 +373,23 @@
     document.querySelector('[name="quantity"]').addEventListener('input', updateTotalCommission);
 
     document.getElementById('location_select').addEventListener('change', function() {
-    const selected = this.options[this.selectedIndex];
-    document.getElementById('location_name').value = selected.dataset.name || '';
-});
+        const selected = this.options[this.selectedIndex];
+        document.getElementById('location_name').value = selected.dataset.name || '';
+    });
 
-    // Trigger calculation on load if prefill values are present
+    function addShipmentRow(vessel='', booking='') {
+        const tbody = document.getElementById('shipments-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" name="vessel_name[]" value="${vessel}" placeholder="Vessel name"></td>
+            <td><input type="text" class="form-control form-control-sm" name="booking_number[]" value="${booking}" placeholder="Booking number"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    }
+
     updateTotalCommission();
 </script>
 

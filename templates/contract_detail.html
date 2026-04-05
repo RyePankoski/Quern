@@ -1,6 +1,44 @@
 {% extends 'base.html' %}
 {% block content %}
 
+<style>
+    #task-box {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        background: #242422;
+        border: 1px solid #3a3a38;
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        width: 280px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    #task-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        pointer-events: none;
+    }
+
+    #unsaved-banner {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 4000;
+        background: #8b0000;
+        color: #fff;
+        text-align: center;
+        padding: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        font-size: 0.95rem;
+    }
+</style>
+
 <div class="container py-4">
 
     <div class="mb-4 d-flex justify-content-between align-items-center">
@@ -9,7 +47,8 @@
             <span class="text-muted">{{ contract['status'] | capitalize }}</span>
         </div>
         <div class="d-flex gap-2">
-            <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>
+            <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download
+                PDF</a>
             <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
         </div>
     </div>
@@ -28,9 +67,11 @@
                         <select class="form-select" name="buyer">
                             <option value="">-- Select Buyer --</option>
                             {% for customer in customers %}
-                            <option value="{{ customer.customer_id }}" {% if contract[
-                            'custom'].get('cf_buyer') == customer.customer_name %}selected{% endif %}>{{
-                            customer.customer_name }}</option>
+                            <option value="{{ customer.customer_id }}"
+                                    {% if contract[
+                            'custom'].get('cf_buyer') == customer.customer_name %}selected{% endif %}>
+                            {{ customer.customer_name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -39,9 +80,11 @@
                         <select class="form-select" name="seller">
                             <option value="">-- Select Seller --</option>
                             {% for customer in customers %}
-                            <option value="{{ customer.customer_id }}" {% if contract[
-                            'customer_id'] == customer.customer_id %}selected{% endif %}>{{ customer.customer_name
-                            }}</option>
+                            <option value="{{ customer.customer_id }}"
+                                    {% if contract[
+                            'customer_id'] == customer.customer_id %}selected{% endif %}>
+                            {{ customer.customer_name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -50,9 +93,12 @@
                         <select class="form-select" name="commodity">
                             <option value="">-- Select Commodity --</option>
                             {% for item in items %}
-                            <option value="{{ item.item_id }}" {% if contract[
+                            <option value="{{ item.item_id }}"
+                                    {% if contract[
                             'line_items'] and contract['line_items'][0]['item_id'] == item.item_id %}selected{% endif
-                            %}>{{ item.item_name }}</option>
+                            %}>
+                            {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -78,8 +124,11 @@
                             <option value="">-- Select --</option>
                             {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper',
                             'Freight', 'Other'] %}
-                            <option value="{{ option }}" {% if contract[
-                            'custom'].get('cf_trnspname') == option %}selected{% endif %}>{{ option }}</option>
+                            <option value="{{ option }}"
+                                    {% if contract[
+                            'custom'].get('cf_trnspname') == option %}selected{% endif %}>
+                            {{ option }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -129,8 +178,11 @@
                         <select class="form-select" name="uom">
                             <option value="">-- Select --</option>
                             {% for option in ['metric ton', 'bushel', 'short ton', 'consulting', 'other'] %}
-                            <option value="{{ option }}" {% if contract[
-                            'custom'].get('cf_uom') == option %}selected{% endif %}>{{ option }}</option>
+                            <option value="{{ option }}"
+                                    {% if contract[
+                            'custom'].get('cf_uom') == option %}selected{% endif %}>
+                            {{ option }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
@@ -163,6 +215,42 @@
             </div>
         </div>
 
+        <!-- Shipments -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Shipments</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>Vessel Name</th>
+                        <th>Booking Number</th>
+                        <th style="width:50px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody id="shipments-body">
+                    {% for shipment in shipments %}
+                    <tr>
+                        <td><input type="text" class="form-control form-control-sm" name="vessel_name[]"
+                                   value="{{ shipment.vessel_name or '' }}"></td>
+                        <td><input type="text" class="form-control form-control-sm" name="booking_number[]"
+                                   value="{{ shipment.booking_number or '' }}"></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="this.closest('tr').remove()">✕
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add
+                    Shipment
+                </button>
+            </div>
+        </div>
+
         <!-- Contract Status -->
         <div class="card mb-4">
             <div class="card-header">
@@ -170,12 +258,24 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        <label class="form-label">Network</label>
+                        <select class="form-select" name="in_network">
+                            <option value="">-- Select --</option>
+                            <option value="true" {% if meta and meta.in_network== True %}selected{% endif %}>In
+                                Network
+                            </option>
+                            <option value="false" {% if meta and meta.in_network== False %}selected{% endif %}>Out of
+                                Network
+                            </option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Seller Reference Number</label>
                         <input type="text" class="form-control" name="seller_reference"
                                value="{{ contract['custom'].get('cf_customer_ref', '') }}">
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label">Salesperson</label>
                         <input type="text" class="form-control" value="{{ contract.get('salesperson_name', '') }}"
                                readonly>
@@ -193,48 +293,35 @@
     </form>
 </div>
 
-
-<!-- Tasks Button -->
 <button id="tasks-toggle" class="btn btn-success"
         style="position:fixed; bottom:2rem; left:2rem; z-index:3500; padding: 0.75rem 1.5rem;">
     Tasks ({{ tasks | selectattr('status', 'equalto', 'pending') | list | length }})
 </button>
 
-<!-- Task Overlay -->
-<div id="task-overlay" style="display:none; position:fixed; inset:0; z-index:2000; pointer-events:none;">
-</div>
-
-<!-- Task Context Box -->
-<div id="task-box"
-     style="display:none; position:fixed; z-index:3000; background:#242422; border:1px solid #3a3a38; border-radius:10px; padding:1.25rem 1.5rem; width:280px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
-    <p style="color:#888780; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.25rem;"
-       id="task-counter"></p>
-    <p style="color:#d3d1c7; font-weight:500; margin-bottom:0.5rem;" id="task-title"></p>
-    <p style="color:#888780; font-size:0.9rem; margin-bottom:1rem;" id="task-description"></p>
-    <!-- Field task -->
-    <button id="task-confirm" class="btn btn-success w-100" style="display:none;">Confirm</button>
-    <!-- Yes/No task -->
-    <div id="task-yesno" style="display:none; gap:0.5rem;" class="d-flex">
-        <button id="task-yes" class="btn btn-success w-50">Yes</button>
-        <button id="task-no" class="btn btn-outline-secondary w-50">No</button>
-    </div>
-</div>
+<div id="task-overlay"></div>
+<div id="task-box"></div>
+<div id="unsaved-banner">Unsaved Changes</div>
 
 <script>
-    const tasks = {{ tasks | map(attribute='id') | list | tojson }};
-    const taskData = {
+    const rawTasks = [
         {% for task in tasks %}
-        {{ task.id }}: {
+        {
             id: {{ task.id }},
-            title: {{ task.template.title | tojson }},
-            description: {{ task.template.description | tojson }},
-            field: {{ task.template.books_field | tojson }},
-            status: {{ task.status | tojson }}
-        },
+            status: {{ task.status | tojson }},
+            template: {
+                title: {{ task.template.title | tojson }},
+                description: {{ task.template.description | tojson }},
+                books_field: {{ task.template.books_field | tojson }}
+            }
+        }{% if not loop.last %},{% endif %}
         {% endfor %}
-    };
+    ];
 
-    let activeTaskIndex = 0;
+    const taskData = rawTasks.reduce((acc, t) => {
+        acc[t.id] = { ...t, field: t.template.books_field, title: t.template.title, description: t.template.description };
+        return acc;
+    }, {});
+
     let walkthroughActive = false;
 
     function getFieldElement(fieldName) {
@@ -245,16 +332,14 @@
         const rect = fieldEl.getBoundingClientRect();
         const box = document.getElementById('task-box');
         const margin = 20;
-        const boxWidth = 280;
         box.style.display = 'block';
+        box.style.transform = '';
         let left = rect.right + margin;
-        let top = rect.top;
-        if (left + boxWidth > window.innerWidth) {
-            left = rect.left - boxWidth - margin;
+        if (left + 280 > window.innerWidth) {
+            left = rect.left - 280 - margin;
         }
-        left = Math.max(margin, left);
-        box.style.left = left + 'px';
-        box.style.top = top + 'px';
+        box.style.left = Math.max(margin, left) + 'px';
+        box.style.top = rect.top + 'px';
     }
 
     function centerBox() {
@@ -263,11 +348,6 @@
         box.style.left = '50%';
         box.style.top = '50%';
         box.style.transform = 'translate(-50%, -50%)';
-    }
-
-    function resetBoxPosition() {
-        const box = document.getElementById('task-box');
-        box.style.transform = '';
     }
 
     function confirmTask(taskId, value) {
@@ -285,86 +365,73 @@
     }
 
     function showTask(index) {
-        const currentPending = tasks.filter(id => taskData[id].status === 'pending');
-        if (index >= currentPending.length) {
+        const pendingIds = Object.keys(taskData).filter(id => taskData[id].status === 'pending');
+
+        if (index >= pendingIds.length) {
             exitWalkthrough();
             return;
         }
 
-        const task = taskData[currentPending[index]];
-        const confirmBtn = document.getElementById('task-confirm');
-        const yesnoDiv = document.getElementById('task-yesno');
-        const yesBtn = document.getElementById('task-yes');
-        const noBtn = document.getElementById('task-no');
+        const task = taskData[pendingIds[index]];
+        const taskBox = document.getElementById('task-box');
 
-        // Update text
-        document.getElementById('task-counter').textContent = `Task ${index + 1} of ${currentPending.length}`;
+        taskBox.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <p style="color:#888780; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin:0;" id="task-counter"></p>
+                <button onclick="exitWalkthrough()" style="background:none; border:none; color:#888780; cursor:pointer; font-size:1.2rem; line-height:1;">&times;</button>
+            </div>
+            <p style="color:#d3d1c7; font-weight:500; margin-bottom:0.5rem;" id="task-title"></p>
+            <p style="color:#888780; font-size:0.9rem; margin-bottom:1rem;" id="task-description"></p>
+            <div id="task-actions"></div>
+        `;
+
+        document.getElementById('task-counter').textContent = `Task ${index + 1} of ${pendingIds.length}`;
         document.getElementById('task-title').textContent = task.title;
         document.getElementById('task-description').textContent = task.description;
 
-        // Clone buttons to clear old listeners
-        const newYes = yesBtn.cloneNode(true);
-        const newNo = noBtn.cloneNode(true);
-        yesBtn.parentNode.replaceChild(newYes, yesBtn);
-        noBtn.parentNode.replaceChild(newNo, noBtn);
+        const actionArea = document.getElementById('task-actions');
 
         if (task.field) {
-            // Field task — spotlight the field
             const fieldEl = getFieldElement(task.field);
-            if (!fieldEl) {
-                showTask(index + 1);
-                return;
-            }
-
-            confirmBtn.style.display = 'block';
-            yesnoDiv.style.display = 'none';
+            if (!fieldEl) { showTask(index + 1); return; }
 
             fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
             setTimeout(() => {
                 const rect = fieldEl.getBoundingClientRect();
-                document.getElementById('task-overlay').style.cssText = `
-                    display:block;
-                    position:fixed;
-                    inset:0;
-                    z-index:2000;
-                    pointer-events:none;
-                    background: radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%);
-                `;
-                resetBoxPosition();
-                positionBox(fieldEl);
+                const overlay = document.getElementById('task-overlay');
+                overlay.style.display = 'block';
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.background = `radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%)`;
 
-                const newConfirm = confirmBtn.cloneNode(true);
-                confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
-                document.getElementById('task-confirm').onclick = () => {
-                    const value = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
-                    confirmTask(task.id, value);
+                positionBox(fieldEl);
+                actionArea.innerHTML = `<button id="btn-confirm" class="btn btn-success w-100">Confirm</button>`;
+                document.getElementById('btn-confirm').onclick = () => {
+                    const val = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
+                    confirmTask(task.id, val);
                 };
             }, 350);
 
         } else {
-            // Yes/No task — center the box, dim the whole screen
-            confirmBtn.style.display = 'none';
-            yesnoDiv.style.display = 'flex';
-
-            document.getElementById('task-overlay').style.cssText = `
-                display:block;
-                position:fixed;
-                inset:0;
-                z-index:2000;
-                pointer-events:none;
-                background: rgba(14,14,12,0.85);
-            `;
-
+            const overlay = document.getElementById('task-overlay');
+            overlay.style.display = 'block';
+            overlay.style.background = 'rgba(14,14,12,0.85)';
             centerBox();
-
-            document.getElementById('task-yes').onclick = () => confirmTask(task.id, 'yes');
-            document.getElementById('task-no').onclick = () => confirmTask(task.id, 'no');
+            actionArea.innerHTML = `
+                <div class="d-flex gap-2">
+                    <button id="btn-yes" class="btn btn-success w-50">Yes</button>
+                    <button id="btn-no" class="btn btn-outline-secondary w-50 text-white">No</button>
+                </div>
+            `;
+            document.getElementById('btn-yes').onclick = () => confirmTask(task.id, 'yes');
+            document.getElementById('btn-no').onclick = () => confirmTask(task.id, 'no');
         }
     }
 
     function updateTaskButton() {
-        const remaining = tasks.filter(id => taskData[id].status === 'pending').length;
+        const remaining = Object.values(taskData).filter(t => t.status === 'pending').length;
         document.getElementById('tasks-toggle').textContent = `Tasks (${remaining})`;
     }
 
@@ -373,33 +440,33 @@
         document.getElementById('task-overlay').style.display = 'none';
         document.getElementById('task-box').style.display = 'none';
         document.body.style.overflow = '';
-        activeTaskIndex = 0;
     }
 
     function enterWalkthrough() {
         document.body.style.overflow = 'hidden';
         walkthroughActive = true;
-        activeTaskIndex = 0;
-        showTask(activeTaskIndex);
+        showTask(0);
     }
 
     document.getElementById('tasks-toggle').addEventListener('click', () => {
-        if (walkthroughActive) {
-            exitWalkthrough();
-        } else {
-            enterWalkthrough();
-        }
+        walkthroughActive ? exitWalkthrough() : enterWalkthrough();
     });
-</script>
 
-<div id="unsaved-banner"
-     style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:4000; background:#8b0000; color:#fff; text-align:center; padding:0.6rem; font-weight:500; letter-spacing:0.05em; font-size:0.95rem;">
-    Unsaved Changes
-</div>
+    function addShipmentRow() {
+        const tbody = document.getElementById('shipments-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" name="vessel_name[]" placeholder="Vessel name"></td>
+            <td><input type="text" class="form-control form-control-sm" name="booking_number[]" placeholder="Booking number"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    }
 
-<script>
+    // Form Dirty Logic
     let formDirty = false;
-
     document.querySelectorAll('form input, form select, form textarea').forEach(el => {
         el.addEventListener('change', () => {
             formDirty = true;
@@ -409,7 +476,6 @@
 
     document.querySelector('form').addEventListener('submit', () => {
         formDirty = false;
-        document.getElementById('unsaved-banner').style.display = 'none';
     });
 
     window.addEventListener('beforeunload', (e) => {
@@ -420,4 +486,4 @@
     });
 </script>
 
-{% endblock %}
+{% endblock %}f

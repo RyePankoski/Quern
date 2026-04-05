@@ -8,15 +8,25 @@
                 <tr>
                     <th>#</th>
                     <th>Name</th>
-                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Address</th>
                 </tr>
             </thead>
             <tbody>
                 {% for customer in customers %}
-                <tr>
+                <tr onclick="window.location='/counterparties/{{ customer.customer_id }}'" style="cursor:pointer;">
                     <td>{{ loop.index }}</td>
                     <td>{{ customer.customer_name }}</td>
-                    <td class="d-none d-md-table-cell">{{ customer.customer_id }}</td>
+                    <td>{{ customer.email or '—' }}</td>
+                    <td>{{ customer.phone or '—' }}</td>
+                    <td>
+                        {% if customer.address %}
+                            {{ customer.address }}{% if customer.city %}, {{ customer.city }}{% endif %}{% if customer.country %}, {{ customer.country }}{% endif %}
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
