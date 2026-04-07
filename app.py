@@ -1,7 +1,8 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from flask import Flask, render_template, request, redirect, flash, send_file
-from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment
+from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
+    BrokerCommission
 from core.tasks import generate_tasks, check_task_reactivity
 from core.pdf import generate_contract_pdf
 from datetime import datetime
@@ -113,25 +114,31 @@ def contracts():
 @login_required
 def contract_detail(salesorder_id):
     contract = zoho.get_sales_order(salesorder_id)
+
     custom_fields = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
     contract['custom'] = custom_fields
 
     customers = Customer.query.all()
     customer_map = {c.customer_id: c.customer_name for c in customers}
+
     buyer_id = contract['custom'].get('cf_buyer', '')
     contract['custom']['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
 
     items = Item.query.all()
+
     tasks = Task.query.filter_by(
         books_sales_order_id=salesorder_id
     ).join(TaskTemplate).order_by(TaskTemplate.order).all()
 
     meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
     shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
+    commissions = BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).all()
+    employee_map = {e.employee_id: e.employee_name for e in Employee.query.all()}
 
     return render_template('contract_detail.html',
                            contract=contract, customers=customers, items=items,
-                           tasks=tasks, meta=meta, shipments=shipments)
+                           tasks=tasks, meta=meta, shipments=shipments,
+                           commissions=commissions, employee_map=employee_map)
 
 
 @app.route('/tasks')
@@ -153,6 +160,7 @@ def tasks_view():
         task_list.append({
             'salesorder_id': row.books_sales_order_id,
             'salesorder_number': contract.get('salesorder_number', row.books_sales_order_id),
+            'location_name': contract.get('location_name', ''),
             'total': row.total,
             'pending': row.pending
         })
@@ -197,6 +205,22 @@ def submit_contract_route():
                     books_sales_order_id=salesorder_id,
                     vessel_name=vessel,
                     booking_number=booking
+                ))
+        db.session.commit()
+
+        # Save broker splits and stuff
+
+        # Save broker commissions
+        employee_ids = request.form.getlist('broker_employee[]')
+        percentages = request.form.getlist('broker_percentage[]')
+        amounts = request.form.getlist('broker_amount[]')
+        for emp_id, pct, amt in zip(employee_ids, percentages, amounts):
+            if emp_id and pct:
+                db.session.add(BrokerCommission(
+                    books_sales_order_id=salesorder_id,
+                    employee_id=emp_id,
+                    percentage=float(pct),
+                    amount=float(amt) if amt else 0.0
                 ))
         db.session.commit()
 
@@ -263,6 +287,22 @@ def update_contract(salesorder_id):
                     books_sales_order_id=salesorder_id,
                     vessel_name=vessel,
                     booking_number=booking
+                ))
+        db.session.commit()
+
+        # Replace broker commisions/split
+        # Replace broker commissions
+        BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).delete()
+        employee_ids = request.form.getlist('broker_employee[]')
+        percentages = request.form.getlist('broker_percentage[]')
+        amounts = request.form.getlist('broker_amount[]')
+        for emp_id, pct, amt in zip(employee_ids, percentages, amounts):
+            if emp_id and pct:
+                db.session.add(BrokerCommission(
+                    books_sales_order_id=salesorder_id,
+                    employee_id=emp_id,
+                    percentage=float(pct),
+                    amount=float(amt) if amt else 0.0
                 ))
         db.session.commit()
 
@@ -481,6 +521,39 @@ def contracts_json():
 
 # Dev page stuff
 
+@app.route('/debug/contracts_list')
+@login_required
+def debug_contracts_list():
+    orders = get_sales_orders(page=1)
+    return orders[0] if orders else {}
+
+
+@app.route('/debug/customers')
+@login_required
+def debug_customers():
+    token = zoho.get_access_token()
+    import requests
+    response = requests.get(
+        "https://www.zohoapis.com/books/v3/contacts",
+        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        params={"organization_id": zoho.ORG_ID, "contact_type": "customer", "per_page": 1}
+    )
+    return response.json()
+
+
+@app.route('/debug/items')
+@login_required
+def debug_items():
+    token = zoho.get_access_token()
+    import requests
+    response = requests.get(
+        "https://www.zohoapis.com/books/v3/items",
+        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        params={"organization_id": zoho.ORG_ID, "per_page": 200}
+    )
+    return response.json()
+
+
 @app.route('/dev')
 @login_required
 def dev_panel():
@@ -528,6 +601,23 @@ def dev_debug(target):
     else:
         result = {'error': f'Unknown debug target: {target}'}
     return result
+
+
+@app.route('/debug_first_contract')
+@login_required
+def debug_first_contract():
+    orders = get_sales_orders(page=1)
+    if not orders:
+        return {'error': 'No contracts found'}
+    first_id = orders[0]['salesorder_id']
+    contract = zoho.get_sales_order(first_id)
+    return contract
+
+
+@app.route('/debug_locations')
+@login_required
+def debug_locations():
+    return {'locations': zoho.get_locations()}
 
 
 # Local contract data
@@ -657,48 +747,6 @@ def wipe_users():
     User.query.delete()
     db.session.commit()
     return 'All users wiped.'
-
-
-def debug_first_contract():
-    orders = get_sales_orders(page=1)
-    if not orders:
-        return {'error': 'No contracts found'}
-    first_id = orders[0]['salesorder_id']
-    contract = zoho.get_sales_order(first_id)
-    return contract
-
-
-def debug_locations():
-    return {'locations': zoho.get_locations()}
-
-
-@app.route('/debug/contracts_list')
-def debug_contracts_list():
-    orders = get_sales_orders(page=1)
-    return orders[0] if orders else {}
-
-
-@app.route('/debug/customers')
-def debug_customers():
-    token = zoho.get_access_token()
-    import requests
-    response = requests.get(
-        "https://www.zohoapis.com/books/v3/contacts",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
-        params={"organization_id": zoho.ORG_ID, "contact_type": "customer", "per_page": 1}
-    )
-    return response.json()
-
-@app.route('/debug/items')
-def debug_items():
-    token = zoho.get_access_token()
-    import requests
-    response = requests.get(
-        "https://www.zohoapis.com/books/v3/items",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
-        params={"organization_id": zoho.ORG_ID, "per_page": 200}
-    )
-    return response.json()
 
 
 if __name__ == '__main__':

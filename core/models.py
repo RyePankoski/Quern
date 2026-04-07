@@ -86,6 +86,7 @@ class Task(db.Model):
     template = db.relationship('TaskTemplate', backref='tasks')
     employee = db.relationship('Employee', backref='tasks')
 
+
 class ContractMeta(db.Model):
     __tablename__ = 'contract_meta'
     id = db.Column(db.Integer, primary_key=True)
@@ -99,4 +100,14 @@ class Shipment(db.Model):
     books_sales_order_id = db.Column(db.String(100), nullable=False)
     vessel_name = db.Column(db.String(200), nullable=True)
     booking_number = db.Column(db.String(200), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class BrokerCommission(db.Model):
+    __tablename__ = 'broker_commissions'
+    id = db.Column(db.Integer, primary_key=True)
+    books_sales_order_id = db.Column(db.String(100), nullable=False)
+    employee_id = db.Column(db.String(100), nullable=False)
+    percentage = db.Column(db.Float, nullable=False)
+    amount = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

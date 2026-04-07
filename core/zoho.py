@@ -15,13 +15,13 @@ _token_cache = {"access_token": None, "expires_at": 0}
 _TOKEN_FILE = "../.token_cache"
 
 
-
-
 # Sync functions
 
 def sync_customers():
     token = get_access_token()
     page = 1
+
+    contract_no = 0
 
     while True:
         response = requests.get(
@@ -33,8 +33,6 @@ def sync_customers():
 
         if not contacts:
             break
-
-        contract_no = 0
 
         for contact in contacts:
             contract_no += 1
@@ -122,6 +120,7 @@ def sync_items():
             db.session.add(new_item)
     db.session.commit()
 
+
 # Getters
 
 def get_items():
@@ -140,7 +139,8 @@ def get_items():
         if not data.get('page_context', {}).get('has_more_page', False):
             break
         page += 1
-    return [{"id": item["item_id"], "name": item["item_name"], "description": item.get("description", "")} for item in items]
+    return [{"id": item["item_id"], "name": item["item_name"], "description": item.get("description", "")} for item in
+            items]
 
 
 def get_customers():
@@ -250,6 +250,7 @@ def get_locations():
         {'branch_id': '4435369000015041258', 'branch_name': 'Australia'},
         {'branch_id': '4435369000015041294', 'branch_name': 'India'},
         {'branch_id': '4435369000015041905', 'branch_name': 'Turkey'},
+        {'branch_id': '4435369000015041009', 'branch_name': 'Boulder'},
     ]
 
 

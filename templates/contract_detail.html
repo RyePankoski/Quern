@@ -195,25 +195,54 @@
         </div>
 
         <!-- Co-Broker -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Co-Broker</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Co Broker Name</label>
-                        <input type="text" class="form-control" name="co_broker_name"
-                               value="{{ contract['custom'].get('cf_co_broker', '') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Co Brokerage Rate</label>
-                        <input type="text" class="form-control" name="co_brokerage_rate"
-                               value="{{ contract['custom'].get('cf_co_brokerage_rate', '') }}">
-                    </div>
-                </div>
-            </div>
+        <label class="form-label fw-semibold">Broker Commission</label>
+        <div id="broker-validation" style="display:none; color:#8b0000; font-size:0.85rem; margin-bottom:0.5rem;">
+            Percentages must add up to 100%
         </div>
+        <table class="table table-bordered table-sm">
+            <thead class="table-dark">
+            <tr>
+                <th>Employee</th>
+                <th style="width:120px;">Percentage</th>
+                <th style="width:150px;">Amount (USD)</th>
+                <th style="width:40px;"></th>
+            </tr>
+            </thead>
+            <tbody id="broker-commission-body">
+            {% for commission in commissions %}
+            <tr>
+                <td>
+                    <select class="form-select form-select-sm" name="broker_employee[]">
+                        <option value="">-- Select Employee --</option>
+                        {% for employee in customers %}
+                        <option value="{{ employee.customer_id }}">{{ employee.customer_name }}</option>
+                        {% endfor %}
+                        {% for emp_id, emp_name in employee_map.items() %}
+                        <option value="{{ emp_id }}" {% if commission.employee_id== emp_id %}selected{% endif %}>
+                            {{ emp_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                           value="{{ commission.percentage }}" min="0" max="100" step="0.01">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                           value="{{ commission.amount }}" readonly
+                           style="background-color:#1a1a18; color:#888780;">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addBrokerRow()">+ Add Broker</button>
 
         <!-- Shipments -->
         <div class="card mb-4">
@@ -303,6 +332,85 @@
 <div id="unsaved-banner">Unsaved Changes</div>
 
 <script>
+
+    function getBrokerTotal() {
+    let total = 0;
+    document.querySelectorAll('[name="broker_percentage[]"]').forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+    return total;
+}
+
+function recalculateBrokerAmounts() {
+    const rate = parseFloat(document.querySelector('[name="commission_rate"]').value) || 0;
+    const qty = parseFloat(document.querySelector('[name="quantity"]').value) || 0;
+    const totalCommission = rate * qty;
+    document.querySelectorAll('#broker-commission-body tr').forEach(row => {
+        const pct = parseFloat(row.querySelector('[name="broker_percentage[]"]').value) || 0;
+        const amtInput = row.querySelector('[name="broker_amount[]"]');
+        amtInput.value = totalCommission > 0 ? (totalCommission * pct / 100).toFixed(2) : '';
+    });
+    const total = getBrokerTotal();
+    const validation = document.getElementById('broker-validation');
+    validation.style.display = (total > 0 && Math.abs(total - 100) > 0.01) ? 'block' : 'none';
+}
+
+function addBrokerRow(employeeId='', percentage='') {
+    const tbody = document.getElementById('broker-commission-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm" name="broker_employee[]">
+                <option value="">-- Select Employee --</option>
+                {% for employee in employees %}
+                <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                   placeholder="0" min="0" max="100" step="0.01" value="${percentage}">
+        </td>
+        <td>
+            <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                   placeholder="—" readonly style="background-color:#1a1a18; color:#888780;">
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕</button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    if (employeeId) {
+        tr.querySelector('[name="broker_employee[]"]').value = employeeId;
+    }
+    tr.querySelector('[name="broker_percentage[]"]').addEventListener('input', recalculateBrokerAmounts);
+    recalculateBrokerAmounts();
+}
+
+// Also recalculate when commission rate or quantity changes
+document.querySelector('[name="commission_rate"]').addEventListener('input', () => {
+    updateTotalCommission();
+    recalculateBrokerAmounts();
+});
+document.querySelector('[name="quantity"]').addEventListener('input', () => {
+    updateTotalCommission();
+    recalculateBrokerAmounts();
+});
+
+// Validate before submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    const rows = document.querySelectorAll('#broker-commission-body tr');
+    if (rows.length > 0) {
+        const total = getBrokerTotal();
+        if (Math.abs(total - 100) > 0.01) {
+            e.preventDefault();
+            document.getElementById('broker-validation').style.display = 'block';
+            document.getElementById('broker-validation').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+});
+
     const rawTasks = [
         {% for task in tasks %}
         {
