@@ -47,8 +47,7 @@
             <span class="text-muted">{{ contract['status'] | capitalize }}</span>
         </div>
         <div class="d-flex gap-2">
-            <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download
-                PDF</a>
+            <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>
             <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
         </div>
     </div>
@@ -68,9 +67,8 @@
                             <option value="">-- Select Buyer --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
-                                    {% if contract[
-                            'custom'].get('cf_buyer') == customer.customer_name %}selected{% endif %}>
-                            {{ customer.customer_name }}
+                                    {% if contract['custom'].get('cf_buyer') == customer.customer_name %}selected{% endif %}>
+                                {{ customer.customer_name }}
                             </option>
                             {% endfor %}
                         </select>
@@ -81,9 +79,8 @@
                             <option value="">-- Select Seller --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
-                                    {% if contract[
-                            'customer_id'] == customer.customer_id %}selected{% endif %}>
-                            {{ customer.customer_name }}
+                                    {% if contract['customer_id'] == customer.customer_id %}selected{% endif %}>
+                                {{ customer.customer_name }}
                             </option>
                             {% endfor %}
                         </select>
@@ -94,10 +91,8 @@
                             <option value="">-- Select Commodity --</option>
                             {% for item in items %}
                             <option value="{{ item.item_id }}"
-                                    {% if contract[
-                            'line_items'] and contract['line_items'][0]['item_id'] == item.item_id %}selected{% endif
-                            %}>
-                            {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
+                                    {% if contract['line_items'] and contract['line_items'][0]['item_id'] == item.item_id %}selected{% endif %}>
+                                {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -122,12 +117,10 @@
                         <label class="form-label">Transportation</label>
                         <select class="form-select" name="transportation">
                             <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper',
-                            'Freight', 'Other'] %}
+                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper', 'Freight', 'Other'] %}
                             <option value="{{ option }}"
-                                    {% if contract[
-                            'custom'].get('cf_trnspname') == option %}selected{% endif %}>
-                            {{ option }}
+                                    {% if contract['custom'].get('cf_trnspname') == option %}selected{% endif %}>
+                                {{ option }}
                             </option>
                             {% endfor %}
                         </select>
@@ -179,9 +172,8 @@
                             <option value="">-- Select --</option>
                             {% for option in ['metric ton', 'bushel', 'short ton', 'consulting', 'other'] %}
                             <option value="{{ option }}"
-                                    {% if contract[
-                            'custom'].get('cf_uom') == option %}selected{% endif %}>
-                            {{ option }}
+                                    {% if contract['custom'].get('cf_uom') == option %}selected{% endif %}>
+                                {{ option }}
                             </option>
                             {% endfor %}
                         </select>
@@ -218,7 +210,7 @@
                         <option value="{{ employee.customer_id }}">{{ employee.customer_name }}</option>
                         {% endfor %}
                         {% for emp_id, emp_name in employee_map.items() %}
-                        <option value="{{ emp_id }}" {% if commission.employee_id== emp_id %}selected{% endif %}>
+                        <option value="{{ emp_id }}" {% if commission.employee_id == emp_id %}selected{% endif %}>
                             {{ emp_name }}
                         </option>
                         {% endfor %}
@@ -274,9 +266,7 @@
                     {% endfor %}
                     </tbody>
                 </table>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add
-                    Shipment
-                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
             </div>
         </div>
 
@@ -291,12 +281,8 @@
                         <label class="form-label">Network</label>
                         <select class="form-select" name="in_network">
                             <option value="">-- Select --</option>
-                            <option value="true" {% if meta and meta.in_network== True %}selected{% endif %}>In
-                                Network
-                            </option>
-                            <option value="false" {% if meta and meta.in_network== False %}selected{% endif %}>Out of
-                                Network
-                            </option>
+                            <option value="true" {% if meta and meta.in_network == True %}selected{% endif %}>In Network</option>
+                            <option value="false" {% if meta and meta.in_network == False %}selected{% endif %}>Out of Network</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -305,9 +291,13 @@
                                value="{{ contract['custom'].get('cf_customer_ref', '') }}">
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label">Buyer Reference Number</label>
+                        <input type="text" class="form-control" name="buyer_reference"
+                               value="{{ meta.buyer_reference or '' if meta else '' }}">
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Salesperson</label>
-                        <input type="text" class="form-control" value="{{ contract.get('salesperson_name', '') }}"
-                               readonly>
+                        <input type="text" class="form-control" value="{{ contract.get('salesperson_name', '') }}" readonly>
                     </div>
                 </div>
             </div>
@@ -594,4 +584,4 @@ document.querySelector('form').addEventListener('submit', function(e) {
     });
 </script>
 
-{% endblock %}f
+{% endblock %}
