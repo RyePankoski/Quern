@@ -23,9 +23,8 @@
                             <option value="">-- Select Buyer --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
-                                    {% if prefill and prefill[
-                            'buyer'] == customer.customer_id %}selected{% endif %}>
-                            {{ customer.customer_name }}
+                                    {% if prefill and prefill['buyer'] == customer.customer_id %}selected{% endif %}>
+                                {{ customer.customer_name }}
                             </option>
                             {% endfor %}
                         </select>
@@ -36,9 +35,8 @@
                             <option value="">-- Select Seller --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
-                                    {% if prefill and prefill[
-                            'seller'] == customer.customer_id %}selected{% endif %}>
-                            {{ customer.customer_name }}
+                                    {% if prefill and prefill['seller'] == customer.customer_id %}selected{% endif %}>
+                                {{ customer.customer_name }}
                             </option>
                             {% endfor %}
                         </select>
@@ -49,9 +47,8 @@
                             <option value="">-- Select Commodity --</option>
                             {% for item in items %}
                             <option value="{{ item.item_id }}"
-                                    {% if prefill and prefill[
-                            'commodity'] == item.item_id %}selected{% endif %}>
-                            {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
+                                    {% if prefill and prefill['commodity'] == item.item_id %}selected{% endif %}>
+                                {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -77,12 +74,10 @@
                         <label class="form-label">Transportation</label>
                         <select class="form-select" name="transportation">
                             <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper',
-                            'Freight', 'Other'] %}
+                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper', 'Freight', 'Other'] %}
                             <option value="{{ option }}"
-                                    {% if prefill and prefill[
-                            'transportation'] == option %}selected{% endif %}>
-                            {{ option }}
+                                    {% if prefill and prefill['transportation'] == option %}selected{% endif %}>
+                                {{ option }}
                             </option>
                             {% endfor %}
                         </select>
@@ -149,9 +144,8 @@
                             <option value="">-- Select --</option>
                             {% for option in ['metric ton', 'bushel', 'short ton', 'consulting', 'other'] %}
                             <option value="{{ option }}"
-                                    {% if prefill and prefill[
-                            'uom'] == option %}selected{% endif %}>
-                            {{ option }}
+                                    {% if prefill and prefill['uom'] == option %}selected{% endif %}>
+                                {{ option }}
                             </option>
                             {% endfor %}
                         </select>
@@ -202,36 +196,22 @@
                     </div>
                 </div>
                 <label class="form-label fw-semibold">Broker Commission</label>
+                <div id="broker-validation"
+                     style="display:none; color:#8b0000; font-size:0.85rem; margin-bottom:0.5rem;">
+                    Percentages must add up to 100%
+                </div>
                 <table class="table table-bordered table-sm">
-                    <thead class="table-light">
+                    <thead class="table-dark">
                     <tr>
                         <th>Employee</th>
-                        <th>Percentage</th>
-                        <th>Amount (USD)</th>
-                        <th></th>
+                        <th style="width:120px;">Percentage</th>
+                        <th style="width:150px;">Amount (USD)</th>
+                        <th style="width:40px;"></th>
                     </tr>
                     </thead>
-                    <tbody id="broker-commission-body">
-                    <tr>
-                        <td>
-                            <select class="form-select form-select-sm" name="broker_employee">
-                                <option value="">-- Select Employee --</option>
-                                {% for employee in employees %}
-                                <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td><input type="number" class="form-control form-control-sm" name="broker_percentage"
-                                   placeholder="0%"></td>
-                        <td><input type="number" class="form-control form-control-sm" name="broker_amount"
-                                   placeholder="0.00"></td>
-                        <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger">✕</button>
-                        </td>
-                    </tr>
-                    </tbody>
+                    <tbody id="broker-commission-body"></tbody>
                 </table>
-                <button type="button" class="btn btn-sm btn-outline-secondary">+ Add Broker</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addBrokerRow()">+ Add Broker</button>
             </div>
         </div>
 
@@ -251,52 +231,7 @@
                     </thead>
                     <tbody id="shipments-body"></tbody>
                 </table>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add
-                    Shipment
-                </button>
-            </div>
-        </div>
-
-        <!-- Contract Tasks -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Contract Tasks</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-bordered table-sm">
-                    <thead class="table-light">
-                    <tr>
-                        <th>Task</th>
-                        <th>Status</th>
-                        <th>Assigned To</th>
-                        <th></th>
-                    </tr>
-                    </thead>
-                    <tbody id="tasks-body">
-                    <tr>
-                        <td><input type="text" class="form-control form-control-sm" placeholder="Task name"></td>
-                        <td>
-                            <select class="form-select form-select-sm">
-                                <option>Pending</option>
-                                <option>In Progress</option>
-                                <option>Complete</option>
-                            </select>
-                        </td>
-                        <td>
-                            <select class="form-select form-select-sm">
-                                <option value="">-- Select --</option>
-                                {% for employee in employees %}
-                                <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger">✕</button>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-                <button type="button" class="btn btn-sm btn-outline-secondary">+ Add Task</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
             </div>
         </div>
 
@@ -314,9 +249,8 @@
                             {% for location in locations %}
                             <option value="{{ location['branch_id'] }}"
                                     data-name="{{ location['branch_name'] }}"
-                                    {% if prefill and prefill.get(
-                            'location_id') == location['branch_id'] %}selected{% endif %}>
-                            {{ location['branch_name'] }}
+                                    {% if prefill and prefill.get('location_id') == location['branch_id'] %}selected{% endif %}>
+                                {{ location['branch_name'] }}
                             </option>
                             {% endfor %}
                         </select>
@@ -362,22 +296,93 @@
 </div>
 
 <script>
+    // Build employee options from Jinja2 into a JS array — avoids Jinja inside JS template literals
+    const employeeOptions = [
+        {% for employee in employees %}
+        { id: "{{ employee.employee_id }}", name: "{{ employee.employee_name }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function buildEmployeeSelect(selectedId = '') {
+        let html = '<option value="">-- Select Employee --</option>';
+        employeeOptions.forEach(emp => {
+            const sel = emp.id === selectedId ? 'selected' : '';
+            html += `<option value="${emp.id}" ${sel}>${emp.name}</option>`;
+        });
+        return html;
+    }
+
+    function getBrokerTotal() {
+        let total = 0;
+        document.querySelectorAll('[name="broker_percentage[]"]').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        return total;
+    }
+
+    function recalculateBrokerAmounts() {
+        const rate = parseFloat(document.querySelector('[name="commission_rate"]').value) || 0;
+        const qty = parseFloat(document.querySelector('[name="quantity"]').value) || 0;
+        const totalCommission = rate * qty;
+        document.querySelectorAll('#broker-commission-body tr').forEach(row => {
+            const pct = parseFloat(row.querySelector('[name="broker_percentage[]"]').value) || 0;
+            const amtInput = row.querySelector('[name="broker_amount[]"]');
+            amtInput.value = totalCommission > 0 ? (totalCommission * pct / 100).toFixed(2) : '';
+        });
+        const total = getBrokerTotal();
+        const validation = document.getElementById('broker-validation');
+        validation.style.display = (total > 0 && Math.abs(total - 100) > 0.01) ? 'block' : 'none';
+    }
+
+    function addBrokerRow(employeeId = '', percentage = '') {
+        const tbody = document.getElementById('broker-commission-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm" name="broker_employee[]">
+                    ${buildEmployeeSelect(employeeId)}
+                </select>
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                       placeholder="0" min="0" max="100" step="0.01" value="${percentage}">
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                       placeholder="—" readonly style="background-color:#1a1a18; color:#888780;">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('[name="broker_percentage[]"]').addEventListener('input', recalculateBrokerAmounts);
+        recalculateBrokerAmounts();
+    }
+
     function updateTotalCommission() {
         const rate = parseFloat(document.querySelector('[name="commission_rate"]').value) || 0;
         const quantity = parseFloat(document.querySelector('[name="quantity"]').value) || 0;
         const total = (rate * quantity).toFixed(2);
-        document.getElementById('total_commission').value = total > 0 ? total : '—';
+        document.getElementById('total_commission').value = parseFloat(total) > 0 ? total : '—';
     }
 
-    document.querySelector('[name="commission_rate"]').addEventListener('input', updateTotalCommission);
-    document.querySelector('[name="quantity"]').addEventListener('input', updateTotalCommission);
+    document.querySelector('[name="commission_rate"]').addEventListener('input', () => {
+        updateTotalCommission();
+        recalculateBrokerAmounts();
+    });
+    document.querySelector('[name="quantity"]').addEventListener('input', () => {
+        updateTotalCommission();
+        recalculateBrokerAmounts();
+    });
 
-    document.getElementById('location_select').addEventListener('change', function() {
+    document.getElementById('location_select').addEventListener('change', function () {
         const selected = this.options[this.selectedIndex];
         document.getElementById('location_name').value = selected.dataset.name || '';
     });
 
-    function addShipmentRow(vessel='', booking='') {
+    function addShipmentRow(vessel = '', booking = '') {
         const tbody = document.getElementById('shipments-body');
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -389,6 +394,18 @@
         `;
         tbody.appendChild(tr);
     }
+
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const rows = document.querySelectorAll('#broker-commission-body tr');
+        if (rows.length > 0) {
+            const total = getBrokerTotal();
+            if (Math.abs(total - 100) > 0.01) {
+                e.preventDefault();
+                document.getElementById('broker-validation').style.display = 'block';
+                document.getElementById('broker-validation').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    });
 
     updateTotalCommission();
 </script>

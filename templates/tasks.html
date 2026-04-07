@@ -23,13 +23,37 @@
         </div>
     </div>
 
+    <!-- Filter Bar -->
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3">
+            <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
+        </div>
+        <div class="col-6 col-md-3">
+            <input type="text" id="filter-office" class="form-control form-control-sm" placeholder="Office">
+        </div>
+        <div class="col-6 col-md-3">
+            <select id="filter-pending" class="form-select form-select-sm">
+                <option value="">All Contracts</option>
+                <option value="pending">Pending Only</option>
+            </select>
+        </div>
+    </div>
+
     {% if task_list %}
-    <div class="list-group">
+    <div class="list-group" id="task-list">
         {% for item in task_list %}
         <a href="/contracts/{{ item['salesorder_id'] }}"
-           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-           style="background-color:#242422; border-color:#3a3a38; color:#d3d1c7;">
-            <span style="font-weight:500;">{{ item['salesorder_number'] }}</span>
+           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center task-item"
+           style="background-color:#242422; border-color:#3a3a38; color:#d3d1c7;"
+           data-number="{{ item['salesorder_number'] | lower }}"
+           data-office="{{ item.get('location_name', '') | lower }}"
+           data-pending="{{ item['pending'] }}">
+            <div>
+                <span style="font-weight:500;">{{ item['salesorder_number'] }}</span>
+                {% if item.get('location_name') %}
+                <span style="color:#888780; font-size:0.8rem; margin-left:0.5rem;">{{ item['location_name'] }}</span>
+                {% endif %}
+            </div>
             <span>
                 {% if item['pending'] > 0 %}
                 <span class="badge rounded-pill count-badge"
@@ -81,6 +105,23 @@
                 animateCount(badge, target, 1200, 'pending');
             }, i * 60);
         });
+    });
+
+    function applyFilters() {
+        const number = document.getElementById('filter-number').value.toLowerCase();
+        const office = document.getElementById('filter-office').value.toLowerCase();
+        const pendingOnly = document.getElementById('filter-pending').value === 'pending';
+
+        document.querySelectorAll('.task-item').forEach(item => {
+            const matchNumber = !number || item.dataset.number.includes(number);
+            const matchOffice = !office || item.dataset.office.includes(office);
+            const matchPending = !pendingOnly || parseInt(item.dataset.pending) > 0;
+            item.style.display = (matchNumber && matchOffice && matchPending) ? '' : 'none';
+        });
+    }
+
+    ['filter-number', 'filter-office', 'filter-pending'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
     });
 </script>
 
