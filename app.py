@@ -1,6 +1,7 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from flask import Flask, render_template, request, redirect, flash, send_file
+from flask_migrate import Migrate
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
     BrokerCommission
 from core.tasks import generate_tasks, check_task_reactivity
@@ -14,6 +15,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quern.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
 db.init_app(app)
+migrate = Migrate(app, db, render_as_batch=True)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -191,6 +193,7 @@ def submit_contract_route():
         # Save local meta
         in_network_val = request.form.get('in_network')
         meta = ContractMeta(
+            buyer_reference = request.form.get('buyer_reference'),
             books_sales_order_id=salesorder_id,
             in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None
         )
@@ -207,8 +210,6 @@ def submit_contract_route():
                     booking_number=booking
                 ))
         db.session.commit()
-
-        # Save broker splits and stuff
 
         # Save broker commissions
         employee_ids = request.form.getlist('broker_employee[]')
@@ -272,10 +273,12 @@ def update_contract(salesorder_id):
         # Save local meta
         meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
         if not meta:
+
             meta = ContractMeta(books_sales_order_id=salesorder_id)
             db.session.add(meta)
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
+        meta.buyer_reference = request.form.get('buyer_reference')
 
         # Replace shipments
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
