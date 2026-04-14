@@ -92,7 +92,6 @@ class ContractMeta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     books_sales_order_id = db.Column(db.String(100), unique=True, nullable=False)
     in_network = db.Column(db.Boolean, nullable=True)
-    buyer_reference = db.Column(db.String(200), nullable=True)
 
 
 class Shipment(db.Model):
@@ -101,6 +100,7 @@ class Shipment(db.Model):
     books_sales_order_id = db.Column(db.String(100), nullable=False)
     vessel_name = db.Column(db.String(200), nullable=True)
     booking_number = db.Column(db.String(200), nullable=True)
+    quantity = db.Column(db.Float, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

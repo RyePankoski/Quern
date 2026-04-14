@@ -2,35 +2,38 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Counterparties</h2>
+
+    <div class="mb-3" style="max-width: 320px;">
+        <input type="text" id="filter-counterparty" class="form-control form-control-sm" placeholder="Search counterparties...">
+    </div>
+
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
                 <tr>
                     <th>#</th>
                     <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Address</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="counterparties-tbody">
                 {% for customer in customers %}
-                <tr onclick="window.location='/counterparties/{{ customer.customer_id }}'" style="cursor:pointer;">
+                <tr onclick="window.location='/counterparties/{{ customer.customer_id }}'" style="cursor:pointer;"
+                    data-name="{{ customer.customer_name | lower }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ customer.customer_name }}</td>
-                    <td>{{ customer.email or '—' }}</td>
-                    <td>{{ customer.phone or '—' }}</td>
-                    <td>
-                        {% if customer.address %}
-                            {{ customer.address }}{% if customer.city %}, {{ customer.city }}{% endif %}{% if customer.country %}, {{ customer.country }}{% endif %}
-                        {% else %}
-                            <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+    document.getElementById('filter-counterparty').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#counterparties-tbody tr').forEach(row => {
+            row.style.display = (!q || row.dataset.name.includes(q)) ? '' : 'none';
+        });
+    });
+</script>
 {% endblock %}

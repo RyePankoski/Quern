@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-semibold mb-0">{{ item.item_name }}</h2>
+            <span class="text-muted">Item Detail</span>
+        </div>
+        <a href="/items" class="btn btn-outline-secondary">← Back to Items</a>
+    </div>
+
+    <!-- Item Info -->
+    {% if item.description %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Description</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-0">{{ item.description }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Contracts -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Contracts</h5>
+            <span class="text-muted" style="font-size:0.85rem;">{{ contracts | length }} found</span>
+        </div>
+        <div class="card-body p-0">
+            {% if contracts %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Contract #</th>
+                            <th>Buyer</th>
+                            <th>Seller</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for contract in contracts %}
+                        <tr onclick="window.location='/contracts/{{ contract.salesorder_id }}'" style="cursor:pointer;">
+                            <td>{{ contract.salesorder_number }}</td>
+                            <td>{{ contract.cf_buyer or '—' }}</td>
+                            <td>{{ contract.customer_name }}</td>
+                            <td>{{ contract.status | capitalize }}</td>
+                            <td>{{ contract.date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-4 text-muted">No contracts found for this item in the most recent 200 contracts.</div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

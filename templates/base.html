@@ -156,8 +156,6 @@
         });
 
         const overlay = document.getElementById('loading-overlay');
-        function showOverlay() { overlay.style.display = 'flex'; }
-        function hideOverlay() { overlay.style.display = 'none'; }
 
         // Hide overlay on page load/back-forward cache
         window.addEventListener('pageshow', hideOverlay);
@@ -187,10 +185,12 @@
         });
 
         $('form').on('submit', function() {
-            // Only show if the form is valid (for browser-side validation)
-            if (this.checkValidity()) {
+            // Only show if the form is valid and not blocked by custom JS validation
+            if (this.checkValidity() && !this.dataset.blockOverlay) {
                 showOverlay();
             }
+            // Reset flag after each attempt
+            delete this.dataset.blockOverlay;
         });
 
         // Trigger overlay for clickable table rows
@@ -201,6 +201,10 @@
     $.fn.hasAttribute = function(name) {
         return this.attr(name) !== undefined;
     };
+
+    // Global overlay controls — accessible from child page scripts
+    function showOverlay() { document.getElementById('loading-overlay').style.display = 'flex'; }
+    function hideOverlay() { document.getElementById('loading-overlay').style.display = 'none'; }
 </script>
 
 </body>

@@ -322,6 +322,8 @@ def update_contract(salesorder_id, form_data):
             {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
+            # TODO: confirm api_name for shipping end date once known
+            {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
         ]
     }
 
@@ -357,6 +359,7 @@ def contract_to_form_data(contract):
         'seller_reference': custom.get('cf_customer_ref', ''),
         'co_broker_name': custom.get('cf_co_broker', ''),
         'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
+        'shipping_date_end': custom.get('cf_shipping_date_end', ''),
         'location_id': contract.get('location_id', ''),
         'location_name': contract.get('location_name', ''),
     }
