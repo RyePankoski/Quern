@@ -122,7 +122,7 @@
                         <label class="form-label">Transportation</label>
                         <select class="form-select" name="transportation">
                             <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper',
+                            {% for option in ['Barge', 'Container', 'Containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'Consulting', 'Performance', 'Paper',
                             'Freight', 'Other'] %}
                             <option value="{{ option }}"
                                     {% if contract[
@@ -137,10 +137,15 @@
                         <input type="text" class="form-control" name="vessel_name"
                                value="{{ contract['custom'].get('cf_vessel_name', '') }}">
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Expected Shipping Date</label>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date Start</label>
                         <input type="date" class="form-control" name="shipping_date"
                                value="{{ contract.get('shipment_date', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date End</label>
+                        <input type="date" class="form-control" name="shipping_date_end"
+                               value="{{ contract['custom'].get('cf_shipping_date_end', '') }}">
                     </div>
                     <div class="col-12">
                         <label class="form-label">Delivery Notes</label>
@@ -209,37 +214,62 @@
             </tr>
             </thead>
             <tbody id="broker-commission-body">
-            {% for commission in commissions %}
-            <tr>
-                <td>
-                    <select class="form-select form-select-sm" name="broker_employee[]">
-                        <option value="">-- Select Employee --</option>
-                        {% for employee in customers %}
-                        <option value="{{ employee.customer_id }}">{{ employee.customer_name }}</option>
-                        {% endfor %}
-                        {% for emp_id, emp_name in employee_map.items() %}
-                        <option value="{{ emp_id }}" {% if commission.employee_id== emp_id %}selected{% endif %}>
-                            {{ emp_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </td>
-                <td>
-                    <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
-                           value="{{ commission.percentage }}" min="0" max="100" step="0.01">
-                </td>
-                <td>
-                    <input type="number" class="form-control form-control-sm" name="broker_amount[]"
-                           value="{{ commission.amount }}" readonly
-                           style="background-color:#1a1a18; color:#888780;">
-                </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-danger"
-                            onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
-                    </button>
-                </td>
-            </tr>
-            {% endfor %}
+            {% if commissions %}
+                {% for commission in commissions %}
+                <tr>
+                    <td>
+                        <select class="form-select form-select-sm" name="broker_employee[]">
+                            <option value="">-- Select Employee --</option>
+                            {% for emp_id, emp_name in employee_map.items() %}
+                            <option value="{{ emp_id }}" {% if commission.employee_id == emp_id %}selected{% endif %}>
+                                {{ emp_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                               value="{{ commission.percentage }}" min="0" max="100" step="0.01">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                               value="{{ commission.amount }}" readonly
+                               style="background-color:#1a1a18; color:#888780;">
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% elif salesperson_employee %}
+                <tr>
+                    <td>
+                        <select class="form-select form-select-sm" name="broker_employee[]">
+                            <option value="">-- Select Employee --</option>
+                            {% for emp_id, emp_name in employee_map.items() %}
+                            <option value="{{ emp_id }}" {% if emp_id == salesperson_employee.employee_id %}selected{% endif %}>
+                                {{ emp_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                               value="100" min="0" max="100" step="0.01">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                               placeholder="—" readonly style="background-color:#1a1a18; color:#888780;">
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                        </button>
+                    </td>
+                </tr>
+            {% endif %}
             </tbody>
         </table>
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addBrokerRow()">+ Add Broker</button>

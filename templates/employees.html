@@ -2,6 +2,7 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Employees</h2>
+    <p class="text-muted" style="font-size:0.85rem;">Click an office cell to edit it.</p>
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
@@ -19,7 +20,12 @@
                     <td>{{ loop.index }}</td>
                     <td>{{ employee.employee_name }}</td>
                     <td>{{ employee.position or '—' }}</td>
-                    <td>{{ employee.office or '—' }}</td>
+                    <td class="office-cell"
+                        data-id="{{ employee.employee_id }}"
+                        data-value="{{ employee.office or '' }}"
+                        style="cursor:pointer; min-width:140px;">
+                        <span class="office-display">{{ employee.office or '—' }}</span>
+                    </td>
                     <td class="d-none d-md-table-cell">{{ employee.email or '—' }}</td>
                 </tr>
                 {% endfor %}
@@ -27,4 +33,73 @@
         </table>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('.office-cell').forEach(cell => {
+    cell.addEventListener('click', function () {
+        if (this.querySelector('input')) return; // already editing
+
+        const current = this.dataset.value;
+        const display = this.querySelector('.office-display');
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm';
+        input.value = current;
+        input.style.minWidth = '120px';
+
+        display.replaceWith(input);
+        input.focus();
+        input.select();
+
+        function save() {
+            const newVal = input.value.trim();
+            const empId = cell.dataset.id;
+
+            fetch(`/employees/${empId}/office`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ office: newVal })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    cell.dataset.value = newVal;
+                    const span = document.createElement('span');
+                    span.className = 'office-display';
+                    span.textContent = newVal || '—';
+                    input.replaceWith(span);
+                    // Brief green flash
+                    cell.style.background = '#1a2e0a';
+                    setTimeout(() => cell.style.background = '', 800);
+                } else {
+                    alert('Save failed: ' + (data.error || 'Unknown error'));
+                    const span = document.createElement('span');
+                    span.className = 'office-display';
+                    span.textContent = current || '—';
+                    input.replaceWith(span);
+                }
+            })
+            .catch(() => {
+                alert('Save failed.');
+                const span = document.createElement('span');
+                span.className = 'office-display';
+                span.textContent = current || '—';
+                input.replaceWith(span);
+            });
+        }
+
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            if (e.key === 'Escape') {
+                const span = document.createElement('span');
+                span.className = 'office-display';
+                span.textContent = current || '—';
+                input.replaceWith(span);
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -86,6 +86,18 @@ def counterparty_detail(customer_id):
     return render_template('counterparty_detail.html', customer=customer, contracts=contracts)
 
 
+@app.route('/employees/<employee_id>/office', methods=['POST'])
+@login_required
+def update_employee_office(employee_id):
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return {'ok': False, 'error': 'Employee not found'}, 404
+    data = request.get_json()
+    employee.office = data.get('office', '').strip() or None
+    db.session.commit()
+    return {'ok': True}
+
+
 @app.route('/employees')
 @login_required
 def employees_view():
@@ -155,12 +167,20 @@ def contract_detail(salesorder_id):
     meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
     shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
     commissions = BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).all()
-    employee_map = {e.employee_id: e.employee_name for e in Employee.query.all()}
+    employees = Employee.query.all()
+    employee_map = {e.employee_id: e.employee_name for e in employees}
+
+    # Find the employee record matching the contract's salesperson
+    salesperson_zoho_id = contract.get('salesperson_id', '')
+    salesperson_employee = next(
+        (e for e in employees if e.salesperson_id == salesperson_zoho_id), None
+    )
 
     return render_template('contract_detail.html',
                            contract=contract, customers=customers, items=items,
                            tasks=tasks, meta=meta, shipments=shipments,
-                           commissions=commissions, employee_map=employee_map)
+                           commissions=commissions, employee_map=employee_map,
+                           salesperson_employee=salesperson_employee)
 
 
 @app.route('/tasks')
@@ -203,7 +223,20 @@ def audit_log_view():
 @app.route('/submit_contract', methods=['POST'])
 @login_required
 def submit_contract_route():
-    result = zoho.submit_contract(request.form)
+    # Build a mutable copy of form data so we can resolve IDs to names
+    form_data = request.form.to_dict(flat=True)
+
+    # S4: resolve buyer ID → name for Books custom field
+    buyer_id = form_data.get('buyer', '')
+    buyer = Customer.query.get(buyer_id)
+    form_data['buyer_name'] = buyer.customer_name if buyer else ''
+
+    # S5: first broker → salesperson, second broker → cf_co_broker
+    broker_employees = request.form.getlist('broker_employee[]')
+    form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
+    form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
         salesorder_id = result['salesorder']['salesorder_id']
         salesorder_number = result['salesorder']['salesorder_number']
@@ -287,9 +320,22 @@ def bulk_edit_save(salesorder_id):
 @app.route('/contracts/<salesorder_id>/update', methods=['POST'])
 @login_required
 def update_contract(salesorder_id):
-    result = zoho.update_contract(salesorder_id, request.form)
+    # Build mutable form data with resolved IDs
+    form_data = request.form.to_dict(flat=True)
+
+    # S4: resolve buyer ID → name
+    buyer_id = form_data.get('buyer', '')
+    buyer = Customer.query.get(buyer_id)
+    form_data['buyer_name'] = buyer.customer_name if buyer else ''
+
+    # S5: first broker → salesperson, second → cf_co_broker
+    broker_employees = request.form.getlist('broker_employee[]')
+    form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
+    form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
-        check_task_reactivity(salesorder_id, request.form)
+        check_task_reactivity(salesorder_id, form_data)
 
         # Save local meta
         meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()

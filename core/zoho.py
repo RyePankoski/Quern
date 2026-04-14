@@ -35,6 +35,8 @@ def sync_customers():
             break
 
         for contact in contacts:
+            if contact.get('status') == 'inactive':
+                continue
             contract_no += 1
             print(f"Syncing {contact['contact_name']}... + {contract_no}")
             # Fetch full contact detail for address
@@ -140,7 +142,7 @@ def get_items():
             break
         page += 1
     return [{"id": item["item_id"], "name": item["item_name"], "description": item.get("description", "")} for item in
-            items]
+            items if item.get("status") != "inactive"]
 
 
 def get_customers():
@@ -275,7 +277,7 @@ def submit_contract(form_data):
             }
         ],
         "custom_fields": [
-            {"api_name": "cf_buyer", "value": form_data.get('buyer')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
             {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
@@ -283,7 +285,8 @@ def submit_contract(form_data):
             {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
-        ]
+        ],
+        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
 
     response = requests.post(
@@ -314,7 +317,7 @@ def update_contract(salesorder_id, form_data):
             }
         ],
         "custom_fields": [
-            {"api_name": "cf_buyer", "value": form_data.get('buyer')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
             {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
@@ -324,7 +327,8 @@ def update_contract(salesorder_id, form_data):
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
             # TODO: confirm api_name for shipping end date once known
             {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
-        ]
+        ],
+        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
 
     response = requests.put(
