@@ -74,7 +74,7 @@
                         <label class="form-label">Transportation</label>
                         <select class="form-select" name="transportation">
                             <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper', 'Freight', 'Other'] %}
+                            {% for option in ['Barge', 'Container', 'Containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'Consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
                             <option value="{{ option }}"
                                     {% if prefill and prefill['transportation'] == option %}selected{% endif %}>
                                 {{ option }}
@@ -243,9 +243,9 @@
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">Office</label>
-                        <select class="form-select" name="location_id" id="location_select">
-                            <option value="">-- Select Office --</option>
+                        <label class="form-label">Office <span style="color:#888780; font-size:0.75rem;">(set by first broker)</span></label>
+                        <select class="form-select" name="location_id" id="location_select" disabled>
+                            <option value="">-- Set by broker --</option>
                             {% for location in locations %}
                             <option value="{{ location['branch_id'] }}"
                                     data-name="{{ location['branch_name'] }}"
@@ -254,6 +254,7 @@
                             </option>
                             {% endfor %}
                         </select>
+                        <input type="hidden" name="location_id" id="location_id_hidden">
                         <input type="hidden" name="location_name" id="location_name">
                     </div>
                     <div class="col-md-3">
@@ -287,9 +288,43 @@
     // Build employee options from Jinja2 into a JS array — avoids Jinja inside JS template literals
     const employeeOptions = [
         {% for employee in employees %}
-        { id: "{{ employee.employee_id }}", name: "{{ employee.employee_name }}" }{% if not loop.last %},{% endif %}
+        { id: "{{ employee.employee_id }}", name: "{{ employee.employee_name }}", office: "{{ employee.office or '' }}" }{% if not loop.last %},{% endif %}
         {% endfor %}
     ];
+
+    const locationOptions = [
+        {% for location in locations %}
+        { id: "{{ location['branch_id'] }}", name: "{{ location['branch_name'] }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function autoPopulateOfficeFromFirstBroker() {
+        const firstBrokerSelect = document.querySelector('#broker-commission-body tr:first-child [name="broker_employee[]"]');
+        const locationSelect = document.getElementById('location_select');
+        const locationNameInput = document.getElementById('location_name');
+        const locationIdHidden = document.getElementById('location_id_hidden');
+        if (!firstBrokerSelect) {
+            locationSelect.value = '';
+            locationNameInput.value = '';
+            locationIdHidden.value = '';
+            return;
+        }
+        const empId = firstBrokerSelect.value;
+        const emp = employeeOptions.find(e => e.id === empId);
+        const office = emp ? emp.office : '';
+        if (office) {
+            const match = locationOptions.find(l => l.name === office);
+            if (match) {
+                locationSelect.value = match.id;
+                locationNameInput.value = match.name;
+                locationIdHidden.value = match.id;
+                return;
+            }
+        }
+        locationSelect.value = '';
+        locationNameInput.value = '';
+        locationIdHidden.value = '';
+    }
 
     function buildEmployeeSelect(selectedId = '') {
         let html = '<option value="">-- Select Employee --</option>';
@@ -341,10 +376,17 @@
             </td>
             <td class="text-center">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕</button>
+                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts(); autoPopulateOfficeFromFirstBroker();">✕</button>
             </td>
         `;
         tbody.appendChild(tr);
+        const empSelect = tr.querySelector('[name="broker_employee[]"]');
+        empSelect.addEventListener('change', () => {
+            // Only auto-populate office if this is the first row
+            const rows = document.querySelectorAll('#broker-commission-body tr');
+            if (rows[0] === tr) autoPopulateOfficeFromFirstBroker();
+        });
+        empSelect.addEventListener('input', recalculateBrokerAmounts);
         tr.querySelector('[name="broker_percentage[]"]').addEventListener('input', recalculateBrokerAmounts);
         recalculateBrokerAmounts();
     }
@@ -363,11 +405,6 @@
     document.querySelector('[name="quantity"]').addEventListener('input', () => {
         updateTotalCommission();
         recalculateBrokerAmounts();
-    });
-
-    document.getElementById('location_select').addEventListener('change', function () {
-        const selected = this.options[this.selectedIndex];
-        document.getElementById('location_name').value = selected.dataset.name || '';
     });
 
     function addShipmentRow(vessel = '', booking = '') {
