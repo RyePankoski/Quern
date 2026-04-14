@@ -286,8 +286,11 @@ def submit_contract(form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
         ],
-        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
+
+    salesperson_id = form_data.get('salesperson_employee_id', '')
+    if salesperson_id:
+        payload['salesperson_id'] = salesperson_id
 
     response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
@@ -328,8 +331,11 @@ def update_contract(salesorder_id, form_data):
             # TODO: confirm api_name for shipping end date once known
             {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
         ],
-        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
+
+    salesperson_id = form_data.get('salesperson_employee_id', '')
+    if salesperson_id:
+        payload['salesperson_id'] = salesperson_id
 
     response = requests.put(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",

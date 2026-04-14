@@ -224,14 +224,17 @@
                 <table class="table table-bordered table-sm">
                     <thead class="table-dark">
                     <tr>
-                        <th>Vessel Name</th>
                         <th>Booking Number</th>
+                        <th style="width:160px;">Quantity</th>
                         <th style="width:50px;"></th>
                     </tr>
                     </thead>
                     <tbody id="shipments-body"></tbody>
                 </table>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
+                    <span style="font-size:0.85rem; color:#888780;">Total Quantity: <strong id="shipment-qty-sum" style="color:#d3d1c7;">0</strong></span>
+                </div>
             </div>
         </div>
 
@@ -407,17 +410,26 @@
         recalculateBrokerAmounts();
     });
 
-    function addShipmentRow(vessel = '', booking = '') {
+    function updateShipmentSum() {
+        let sum = 0;
+        document.querySelectorAll('[name="shipment_quantity[]"]').forEach(input => {
+            sum += parseFloat(input.value) || 0;
+        });
+        document.getElementById('shipment-qty-sum').textContent = sum % 1 === 0 ? sum : sum.toFixed(2);
+    }
+
+    function addShipmentRow(booking = '', qty = '') {
         const tbody = document.getElementById('shipments-body');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><input type="text" class="form-control form-control-sm" name="vessel_name[]" value="${vessel}" placeholder="Vessel name"></td>
             <td><input type="text" class="form-control form-control-sm" name="booking_number[]" value="${booking}" placeholder="Booking number"></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm" name="shipment_quantity[]" value="${qty}" placeholder="0.00"></td>
             <td class="text-center">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">✕</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); updateShipmentSum();">✕</button>
             </td>
         `;
         tbody.appendChild(tr);
+        tr.querySelector('[name="shipment_quantity[]"]').addEventListener('input', updateShipmentSum);
     }
 
     // ── Session cache: restore fields on page load ──────────────────────────

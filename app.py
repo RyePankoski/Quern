@@ -231,10 +231,15 @@ def submit_contract_route():
     buyer = Customer.query.get(buyer_id)
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
-    # S5: first broker → salesperson, second broker → cf_co_broker
+    # S5: first broker → salesperson, second → cf_co_broker
     broker_employees = request.form.getlist('broker_employee[]')
-    form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
-    form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+    first_broker_id = broker_employees[0] if len(broker_employees) > 0 else ''
+    second_broker_id = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    # Resolve to Zoho salesperson_id via the Employee model
+    first_broker = Employee.query.get(first_broker_id) if first_broker_id else None
+    form_data['salesperson_employee_id'] = (first_broker.salesperson_id or '') if first_broker else ''
+    form_data['second_broker_employee_id'] = second_broker_id
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
@@ -330,8 +335,12 @@ def update_contract(salesorder_id):
 
     # S5: first broker → salesperson, second → cf_co_broker
     broker_employees = request.form.getlist('broker_employee[]')
-    form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
-    form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+    first_broker_id = broker_employees[0] if len(broker_employees) > 0 else ''
+    second_broker_id = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    first_broker = Employee.query.get(first_broker_id) if first_broker_id else None
+    form_data['salesperson_employee_id'] = (first_broker.salesperson_id or '') if first_broker else ''
+    form_data['second_broker_employee_id'] = second_broker_id
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
