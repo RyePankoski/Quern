@@ -17,6 +17,11 @@
             <option value="">-- Select a field --</option>
             <option value="vessel_name">Vessel Name</option>
             <option value="quantity">Quantity</option>
+            <option value="seller_reference">Seller Reference #</option>
+            <option value="shipping_date_end">Shipping End Date</option>
+            <option value="uom">UOM</option>
+            <option value="transportation">Transportation Type</option>
+            <option value="co_broker_name">Co-Broker Name</option>
         </select>
     </div>
 
@@ -60,6 +65,11 @@
                         data-id="{{ contract['salesorder_id'] }}"
                         data-vessel="{{ contract.get('cf_vessel_name', '') }}"
                         data-quantity=""
+                        data-seller_reference="{{ contract.get('cf_customer_ref', '') }}"
+                        data-shipping_date_end="{{ contract.get('cf_shipping_date_end', '') }}"
+                        data-uom="{{ contract.get('cf_uom', '') }}"
+                        data-transportation="{{ contract.get('cf_trnspname', '') }}"
+                        data-co_broker_name="{{ contract.get('cf_co_broker', '') }}"
                         data-number="{{ contract['salesorder_number'] | lower }}"
                         data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
                         data-seller="{{ contract['customer_name'] | lower }}"
@@ -88,8 +98,21 @@
 <script>
     const fieldLabels = {
         vessel_name: 'Vessel Name',
-        quantity: 'Quantity'
+        quantity: 'Quantity',
+        seller_reference: 'Seller Reference #',
+        shipping_date_end: 'Shipping End Date',
+        uom: 'UOM',
+        transportation: 'Transportation Type',
+        co_broker_name: 'Co-Broker Name'
     };
+
+    const fieldTypes = {
+        quantity: 'number',
+        shipping_date_end: 'date'
+    };
+
+    const uomOptions = ['tons', 'bushels', 'short tons', 'LBS', 'Cars', 'consulting', 'other'];
+    const transportationOptions = ['Barge', 'Container', 'Rail', 'Truck', 'Vessel', 'Consulting', 'Paper', 'Freight', 'Other'];
 
     const fieldSelect = document.getElementById('field-select');
     const tableWrapper = document.getElementById('table-wrapper');
@@ -128,19 +151,30 @@
         rows.forEach(row => {
             const valueCell = row.querySelector('.value-cell');
             const saveBtn = row.querySelector('.save-btn');
-            const currentVal = field === 'vessel_name'
-                ? (row.dataset.vessel || '')
-                : (row.dataset.quantity || '');
-
-            const inputType = field === 'quantity' ? 'number' : 'text';
-            const input = document.createElement('input');
-            input.type = inputType;
-            if (field === 'quantity') input.step = '0.01';
-            input.className = 'form-control form-control-sm';
-            input.value = currentVal;
-            input.dataset.original = currentVal;
+            const currentVal = row.dataset[field] || '';
 
             valueCell.innerHTML = '';
+
+            let input;
+            if (field === 'uom') {
+                input = document.createElement('select');
+                input.className = 'form-select form-select-sm';
+                input.innerHTML = '<option value="">-- Select --</option>' +
+                    uomOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
+            } else if (field === 'transportation') {
+                input = document.createElement('select');
+                input.className = 'form-select form-select-sm';
+                input.innerHTML = '<option value="">-- Select --</option>' +
+                    transportationOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
+            } else {
+                input = document.createElement('input');
+                input.type = fieldTypes[field] || 'text';
+                if (field === 'quantity') input.step = '0.01';
+                input.className = 'form-control form-control-sm';
+                input.value = currentVal;
+            }
+
+            input.dataset.original = currentVal;
             valueCell.appendChild(input);
 
             const newBtn = saveBtn.cloneNode(true);

@@ -2,26 +2,42 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Items</h2>
+
+    <div class="mb-3" style="max-width: 320px;">
+        <input type="text" id="filter-item" class="form-control form-control-sm" placeholder="Search items...">
+    </div>
+
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
                 <tr>
                     <th>#</th>
                     <th>Name</th>
-                    <th>ID</th>
+                    <th>Description</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="items-tbody">
                 {% for item in items %}
-                <tr>
+                <tr onclick="window.location='/items/{{ item.item_id }}'" style="cursor:pointer;"
+                    data-name="{{ item.item_name | lower }}"
+                    data-description="{{ (item.description or '') | lower }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ item.item_name }}</td>
-                    <td class="d-none d-md-table-cell">{{ item.item_id }}</td>
-
+                    <td>{{ item.description or '—' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+    document.getElementById('filter-item').addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#items-tbody tr').forEach(row => {
+            const match = !q || row.dataset.name.includes(q) || row.dataset.description.includes(q);
+            row.style.display = match ? '' : 'none';
+        });
+    });
+</script>
 {% endblock %}

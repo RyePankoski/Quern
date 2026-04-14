@@ -55,8 +55,8 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity Price (USD)</label>
-                        <input type="number" step="0.01" class="form-control" name="commodity_rate"
-                               placeholder="0.00"
+                        <input type="text" class="form-control" name="commodity_rate"
+                               placeholder="e.g. 245.50"
                                value="{{ prefill.commodity_rate if prefill else '' }}">
                     </div>
                 </div>
@@ -142,7 +142,7 @@
                         <label class="form-label">UOM</label>
                         <select class="form-select" name="uom">
                             <option value="">-- Select --</option>
-                            {% for option in ['metric ton', 'bushel', 'short ton', 'consulting', 'other'] %}
+                            {% for option in ['tons', 'bushels', 'short tons', 'LBS', 'Cars', 'consulting', 'other'] %}
                             <option value="{{ option }}"
                                     {% if prefill and prefill['uom'] == option %}selected{% endif %}>
                                 {{ option }}
@@ -265,27 +265,10 @@
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Contract Status</label>
-                        <select class="form-select" name="contract_status">
-                            <option value="">-- Select --</option>
-                            <option>Draft</option>
-                            <option>Confirmed</option>
-                            <option>Laytime Pending</option>
-                            <option>Cancelled</option>
-                            <option>No Commission</option>
-                            <option>Paid</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
                         <label class="form-label">Seller Reference Number</label>
                         <input type="text" class="form-control" name="seller_reference"
                                placeholder="Enter reference number"
                                value="{{ prefill.seller_reference if prefill else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Buyer Reference Number</label>
-                        <input type="text" class="form-control" name="buyer_reference"
-                               placeholder="Enter buyer reference number">
                     </div>
                 </div>
             </div>
@@ -400,16 +383,84 @@
         tbody.appendChild(tr);
     }
 
+    // ── Session cache: restore fields on page load ──────────────────────────
+    const CACHE_KEY = 'new_contract_cache';
+
+    function cacheForm() {
+        const form = document.querySelector('form');
+        const data = {};
+        new FormData(form).forEach((val, key) => {
+            if (!data[key]) data[key] = val;
+            // for multi-value fields, collect as array
+        });
+        // Capture all fields including multiples
+        const raw = {};
+        form.querySelectorAll('[name]').forEach(el => {
+            const name = el.name;
+            if (el.tagName === 'SELECT') {
+                raw[name] = el.value;
+            } else if (el.type === 'checkbox') {
+                raw[name] = el.checked;
+            } else {
+                raw[name] = el.value;
+            }
+        });
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(raw));
+    }
+
+    function restoreForm() {
+        const saved = sessionStorage.getItem(CACHE_KEY);
+        if (!saved) return;
+        const raw = JSON.parse(saved);
+        const form = document.querySelector('form');
+        form.querySelectorAll('[name]').forEach(el => {
+            const val = raw[el.name];
+            if (val === undefined) return;
+            if (el.tagName === 'SELECT') {
+                el.value = val;
+                // trigger Select2 update if present
+                if (window.$ && $(el).data('select2')) $(el).trigger('change');
+            } else if (el.type === 'checkbox') {
+                el.checked = val;
+            } else {
+                el.value = val;
+            }
+        });
+        updateTotalCommission();
+        sessionStorage.removeItem(CACHE_KEY);
+    }
+
+    // Restore on load if there's cached data (i.e. after a failed submit)
+    restoreForm();
+
+    // ── Submit: validate then cache ──────────────────────────────────────────
     document.querySelector('form').addEventListener('submit', function (e) {
-        const rows = document.querySelectorAll('#broker-commission-body tr');
-        if (rows.length > 0) {
+        // Broker % validation
+        const brokerRows = document.querySelectorAll('#broker-commission-body tr');
+        if (brokerRows.length > 0) {
             const total = getBrokerTotal();
             if (Math.abs(total - 100) > 0.01) {
                 e.preventDefault();
+                this.dataset.blockOverlay = '1';
                 document.getElementById('broker-validation').style.display = 'block';
                 document.getElementById('broker-validation').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
             }
         }
+
+        // Shipping end date cannot precede contract date
+        const contractDate = document.querySelector('[name="contract_date"]').value;
+        const shippingEnd = document.querySelector('[name="shipping_date_end"]').value;
+        if (contractDate && shippingEnd && shippingEnd < contractDate) {
+            e.preventDefault();
+            this.dataset.blockOverlay = '1';
+            alert('Shipping end date cannot be before the contract date.');
+            document.querySelector('[name="shipping_date_end"]').focus();
+            return;
+        }
+
+        // Cache form before submitting in case server returns an error
+        cacheForm();
     });
 
     updateTotalCommission();

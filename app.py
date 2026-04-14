@@ -1,7 +1,6 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from flask import Flask, render_template, request, redirect, flash, send_file
-from flask_migrate import Migrate
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
     BrokerCommission
 from core.tasks import generate_tasks, check_task_reactivity
@@ -15,7 +14,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quern.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
 db.init_app(app)
-migrate = Migrate(app, db, render_as_batch=True)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -35,6 +33,28 @@ def home():
 def items_view():
     items = Item.query.order_by(Item.item_name).all()
     return render_template('items.html', items=items)
+
+
+@app.route('/items/<item_id>')
+@login_required
+def item_detail(item_id):
+    item = Item.query.get(item_id)
+    if not item:
+        flash('Item not found.', 'danger')
+        return redirect('/items')
+
+    orders = get_sales_orders()
+    customer_map = {c.customer_id: c.customer_name for c in Customer.query.all()}
+
+    contracts = []
+    for order in orders:
+        buyer_id = order.get('cf_buyer', '')
+        order['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
+        line_items = order.get('line_items', [])
+        if any(li.get('item_id') == item_id for li in line_items):
+            contracts.append(order)
+
+    return render_template('item_detail.html', item=item, contracts=contracts)
 
 
 @app.route('/counterparties')
@@ -193,23 +213,24 @@ def submit_contract_route():
         # Save local meta
         in_network_val = request.form.get('in_network')
         meta = ContractMeta(
-            buyer_reference = request.form.get('buyer_reference'),
             books_sales_order_id=salesorder_id,
             in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None
         )
         db.session.add(meta)
 
         # Save shipments
-        vessel_names = request.form.getlist('vessel_name[]')
         booking_numbers = request.form.getlist('booking_number[]')
-        for vessel, booking in zip(vessel_names, booking_numbers):
-            if vessel or booking:
+        shipment_quantities = request.form.getlist('shipment_quantity[]')
+        for booking, qty in zip(booking_numbers, shipment_quantities):
+            if booking or qty:
                 db.session.add(Shipment(
                     books_sales_order_id=salesorder_id,
-                    vessel_name=vessel,
-                    booking_number=booking
+                    booking_number=booking,
+                    quantity=float(qty) if qty else None
                 ))
         db.session.commit()
+
+        # Save broker splits and stuff
 
         # Save broker commissions
         employee_ids = request.form.getlist('broker_employee[]')
@@ -247,7 +268,7 @@ def bulk_edit_save(salesorder_id):
     field = data.get('field')
     value = data.get('value')
 
-    allowed_fields = {'vessel_name', 'quantity'}
+    allowed_fields = {'vessel_name', 'quantity', 'seller_reference', 'shipping_date_end', 'uom', 'transportation', 'co_broker_name'}
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
@@ -273,23 +294,21 @@ def update_contract(salesorder_id):
         # Save local meta
         meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
         if not meta:
-
             meta = ContractMeta(books_sales_order_id=salesorder_id)
             db.session.add(meta)
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
-        meta.buyer_reference = request.form.get('buyer_reference')
 
         # Replace shipments
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
-        vessel_names = request.form.getlist('vessel_name[]')
         booking_numbers = request.form.getlist('booking_number[]')
-        for vessel, booking in zip(vessel_names, booking_numbers):
-            if vessel or booking:
+        shipment_quantities = request.form.getlist('shipment_quantity[]')
+        for booking, qty in zip(booking_numbers, shipment_quantities):
+            if booking or qty:
                 db.session.add(Shipment(
                     books_sales_order_id=salesorder_id,
-                    vessel_name=vessel,
-                    booking_number=booking
+                    booking_number=booking,
+                    quantity=float(qty) if qty else None
                 ))
         db.session.commit()
 
