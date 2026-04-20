@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 
 import requests
 import time
-import json
 import os
 
 load_dotenv()
@@ -12,7 +11,6 @@ CLIENT_SECRET = os.getenv('ZOHO_CLIENT_SECRET')
 REFRESH_TOKEN = os.getenv('ZOHO_REFRESH_TOKEN')
 ORG_ID = os.getenv('ZOHO_ORG_ID')
 _token_cache = {"access_token": None, "expires_at": 0}
-_TOKEN_FILE = "../.token_cache"
 
 
 # Sync functions
@@ -167,14 +165,8 @@ def get_sales_order(salesorder_id):
 
 
 def get_access_token():
-    try:
-        if os.path.exists(_TOKEN_FILE):
-            with open(_TOKEN_FILE) as f:
-                cache = json.load(f)
-            if time.time() < cache.get("expires_at", 0):
-                return cache["access_token"]
-    except (json.JSONDecodeError, KeyError, IOError):
-        pass  # Cache is corrupt or unreadable, fall through to refresh
+    if _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
+        return _token_cache["access_token"]
 
     response = requests.post(
         "https://accounts.zoho.com/oauth/v2/token",
@@ -194,16 +186,8 @@ def get_access_token():
     if 'access_token' not in data:
         raise RuntimeError(f"Failed to get access token: {data}")
 
-    cache = {
-        "access_token": data["access_token"],
-        "expires_at": time.time() + 3500
-    }
-
-    try:
-        with open(_TOKEN_FILE, "w") as f:
-            json.dump(cache, f)
-    except IOError as e:
-        pass  # Non-fatal — token still works this session, just won't be cached
+    _token_cache["access_token"] = data["access_token"]
+    _token_cache["expires_at"] = time.time() + 3500
 
     return data["access_token"]
 
@@ -286,11 +270,8 @@ def submit_contract(form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
         ],
+        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
-
-    salesperson_id = form_data.get('salesperson_employee_id', '')
-    if salesperson_id:
-        payload['salesperson_id'] = salesperson_id
 
     response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
@@ -331,11 +312,8 @@ def update_contract(salesorder_id, form_data):
             # TODO: confirm api_name for shipping end date once known
             {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
         ],
+        "salesperson_id": form_data.get('salesperson_employee_id', ''),
     }
-
-    salesperson_id = form_data.get('salesperson_employee_id', '')
-    if salesperson_id:
-        payload['salesperson_id'] = salesperson_id
 
     response = requests.put(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
@@ -383,25 +361,3 @@ if __name__ == '__main__':
         params={"organization_id": ORG_ID, "per_page": 1}
     )
     print(response.json())
-
-# def get_access_token():
-#     import time
-#     if _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
-#         return _token_cache["access_token"]
-#
-#     response = requests.post(
-#         "https://accounts.zoho.com/oauth/v2/token",
-#         params={
-#             "grant_type": "refresh_token",
-#             "client_id": CLIENT_ID,
-#             "client_secret": CLIENT_SECRET,
-#             "refresh_token": REFRESH_TOKEN,
-#         }
-#     )
-#     data = response.json()
-#     if 'access_token' not in data:
-#         raise RuntimeError(f"Failed to get access token: {data}")
-#
-#     _token_cache["access_token"] = data["access_token"]
-#     _token_cache["expires_at"] = time.time() + 3500
-#     return data["access_token"]
