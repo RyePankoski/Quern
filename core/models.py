@@ -47,6 +47,8 @@ class Item(db.Model):
     item_id = db.Column(db.String(100), primary_key=True)
     item_name = db.Column(db.String(200))
     description = db.Column(db.String(500), nullable=True)
+    origin = db.Column(db.String(200), nullable=True)
+    pnl_group = db.Column(db.String(200), nullable=True)
 
 
 class Employee(db.Model):

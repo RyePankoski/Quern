@@ -1,10 +1,11 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
+from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item
 from flask import Flask, render_template, request, redirect, flash, send_file
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
     BrokerCommission
 from core.tasks import generate_tasks, check_task_reactivity
-from core.pdf import generate_contract_pdf
+from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
+from core.pdf import generate_contract_pdf, generate_contract_docx
 from datetime import datetime
 from core import zoho
 import os
@@ -43,16 +44,17 @@ def item_detail(item_id):
         flash('Item not found.', 'danger')
         return redirect('/items')
 
-    orders = get_sales_orders()
+    # Use the item-filtered endpoint instead of fetching all orders and
+    # scanning line items — the list endpoint does not return line_items,
+    # so the old approach always produced zero results.
+    orders = get_sales_orders_for_item(item_id)
     customer_map = {c.customer_id: c.customer_name for c in Customer.query.all()}
 
     contracts = []
     for order in orders:
         buyer_id = order.get('cf_buyer', '')
         order['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
-        line_items = order.get('line_items', [])
-        if any(li.get('item_id') == item_id for li in line_items):
-            contracts.append(order)
+        contracts.append(order)
 
     return render_template('item_detail.html', item=item, contracts=contracts)
 
@@ -223,18 +225,22 @@ def audit_log_view():
 @app.route('/submit_contract', methods=['POST'])
 @login_required
 def submit_contract_route():
-    # Build a mutable copy of form data so we can resolve IDs to names
     form_data = request.form.to_dict(flat=True)
 
-    # S4: resolve buyer ID → name for Books custom field
+    # Resolve buyer ID → name for Books custom field
     buyer_id = form_data.get('buyer', '')
     buyer = Customer.query.get(buyer_id)
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
-    # S5: first broker → salesperson, second broker → cf_co_broker
+    # First broker → salesperson_employee_id, second → second_broker_employee_id
+    # The second broker goes to cf_split_broker in Books (resolved in zoho.submit_contract)
     broker_employees = request.form.getlist('broker_employee[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    # Concatenate booking numbers into a comma-separated string for customer_notes
+    booking_numbers = request.form.getlist('booking_number[]')
+    form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
@@ -243,7 +249,6 @@ def submit_contract_route():
         office = request.form.get('location_name', 'Head Office')
         generate_tasks(salesorder_id, country=office)
 
-        # Save local meta
         in_network_val = request.form.get('in_network')
         meta = ContractMeta(
             books_sales_order_id=salesorder_id,
@@ -251,8 +256,6 @@ def submit_contract_route():
         )
         db.session.add(meta)
 
-        # Save shipments
-        booking_numbers = request.form.getlist('booking_number[]')
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
             if booking or qty:
@@ -263,9 +266,6 @@ def submit_contract_route():
                 ))
         db.session.commit()
 
-        # Save broker splits and stuff
-
-        # Save broker commissions
         employee_ids = request.form.getlist('broker_employee[]')
         percentages = request.form.getlist('broker_percentage[]')
         amounts = request.form.getlist('broker_amount[]')
@@ -301,13 +301,25 @@ def bulk_edit_save(salesorder_id):
     field = data.get('field')
     value = data.get('value')
 
-    allowed_fields = {'vessel_name', 'quantity', 'seller_reference', 'shipping_date_end', 'uom', 'transportation', 'co_broker_name'}
+    allowed_fields = {'vessel_name', 'quantity', 'seller_reference', 'shipping_date_end',
+                      'uom', 'transportation', 'co_broker_name'}
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
     contract = zoho.get_sales_order(salesorder_id)
     form_data = zoho.contract_to_form_data(contract)
     form_data[field] = value
+
+    # Preserve salesperson: look up the employee whose salesperson_id matches the contract's
+    salesperson_zoho_id = contract.get('salesperson_id', '')
+    if salesperson_zoho_id:
+        matching_emp = Employee.query.filter_by(salesperson_id=salesperson_zoho_id).first()
+        form_data['salesperson_employee_id'] = matching_emp.employee_id if matching_emp else ''
+    else:
+        form_data['salesperson_employee_id'] = ''
+
+    # booking_numbers_concat: preserve existing customer_notes
+    form_data['booking_numbers_concat'] = contract.get('customer_notes', '')
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
@@ -320,24 +332,24 @@ def bulk_edit_save(salesorder_id):
 @app.route('/contracts/<salesorder_id>/update', methods=['POST'])
 @login_required
 def update_contract(salesorder_id):
-    # Build mutable form data with resolved IDs
     form_data = request.form.to_dict(flat=True)
 
-    # S4: resolve buyer ID → name
     buyer_id = form_data.get('buyer', '')
     buyer = Customer.query.get(buyer_id)
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
-    # S5: first broker → salesperson, second → cf_co_broker
     broker_employees = request.form.getlist('broker_employee[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+
+    # Concatenate booking numbers for customer_notes
+    booking_numbers = request.form.getlist('booking_number[]')
+    form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
         check_task_reactivity(salesorder_id, form_data)
 
-        # Save local meta
         meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
         if not meta:
             meta = ContractMeta(books_sales_order_id=salesorder_id)
@@ -345,9 +357,7 @@ def update_contract(salesorder_id):
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
 
-        # Replace shipments
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
-        booking_numbers = request.form.getlist('booking_number[]')
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
             if booking or qty:
@@ -358,8 +368,6 @@ def update_contract(salesorder_id):
                 ))
         db.session.commit()
 
-        # Replace broker commisions/split
-        # Replace broker commissions
         BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).delete()
         employee_ids = request.form.getlist('broker_employee[]')
         percentages = request.form.getlist('broker_percentage[]')
@@ -379,39 +387,6 @@ def update_contract(salesorder_id):
     else:
         flash(f"Update failed: {result.get('message', 'Unknown error')}", 'danger')
         return redirect(request.referrer or '/contracts')
-
-
-@app.route('/contracts/<salesorder_id>/pdf')
-@login_required
-def contract_pdf(salesorder_id):
-    contract = zoho.get_sales_order(salesorder_id)
-    form_data = zoho.contract_to_form_data(contract)
-    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
-    logo_path = os.path.join(app.root_path, 'static', 'img', 'logo_header.jpeg')
-
-    data = {
-        'date': contract.get('date', ''),
-        'contract_number': contract.get('salesorder_number', ''),
-        'seller': customers.get(form_data['seller'], ''),
-        'buyer': customers.get(form_data['buyer'], ''),
-        'quantity': form_data['quantity'],
-        'uom': form_data['uom'],
-        'shipment': form_data['shipping_date'],
-        'price': form_data['commodity_rate'],
-        'other_conditions': form_data['delivery_notes'],
-        'broker': contract.get('salesperson_name', ''),
-        'quality': '', 'grades': '', 'weights': '', 'governing_contract': '',
-        'discount': '', 'moisture': '', 'damage': '', 'heat_damage': '',
-        'foreign_materials': '', 'splits': '', 'payment': '', 'demurrage': '',
-    }
-
-    buffer = generate_contract_pdf(data, logo_path)
-    return send_file(
-        buffer,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f"{contract.get('salesorder_number', 'contract')}.pdf"
-    )
 
 
 # Security related
@@ -748,6 +723,34 @@ def delete_shipment(shipment_id):
     return {'ok': True}
 
 
+@app.route('/contracts/<salesorder_id>/pdf')
+@login_required
+def contract_pdf(salesorder_id):
+    contract, data = _build_contract_data(salesorder_id)
+    logo_path = os.path.join(app.root_path, 'static', 'img', 'logo_header.jpeg')
+    buffer = generate_contract_pdf(data, logo_path)
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f"{contract.get('salesorder_number', 'contract')}.pdf"
+    )
+
+
+@app.route('/contracts/<salesorder_id>/docx')
+@login_required
+def contract_docx(salesorder_id):
+    contract, data = _build_contract_data(salesorder_id)
+    logo_path = os.path.join(app.root_path, 'static', 'img', 'logo_header.jpeg')
+    buffer = generate_contract_docx(data, logo_path)
+    return send_file(
+        buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        as_attachment=True,
+        download_name=f"{contract.get('salesorder_number', 'contract')}.docx"
+    )
+
+
 # Dashboard
 
 @app.route('/dashboard')
@@ -778,6 +781,34 @@ def dashboard():
 
 
 # Functions
+
+def _build_contract_data(salesorder_id):
+    """Shared data-assembly for PDF and DOCX contract downloads."""
+    contract = zoho.get_sales_order(salesorder_id)
+    form_data = zoho.contract_to_form_data(contract)
+    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
+    items = {i.item_id: i for i in Item.query.all()}
+
+    commodity_item = items.get(form_data.get('commodity', ''))
+    origin = commodity_item.origin if commodity_item and commodity_item.origin else ''
+
+    return contract, {
+        'date': contract.get('date', ''),
+        'contract_number': contract.get('salesorder_number', ''),
+        'seller': customers.get(form_data['seller'], ''),
+        'buyer': customers.get(form_data['buyer'], ''),
+        'quantity': form_data['quantity'],
+        'uom': form_data['uom'],
+        'shipment': form_data['shipping_date'],
+        'price': form_data['commodity_rate'],
+        'other_conditions': form_data['delivery_notes'],
+        'broker': contract.get('salesperson_name', ''),
+        'origin': origin,
+        'quality': '', 'grades': '', 'weights': '', 'governing_contract': '',
+        'discount': '', 'moisture': '', 'damage': '', 'heat_damage': '',
+        'foreign_materials': '', 'splits': '', 'payment': '', 'demurrage': '',
+    }
+
 
 def first_time_startup():
     wipe_tasks()
