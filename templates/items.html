@@ -14,16 +14,22 @@
                     <th>#</th>
                     <th>Name</th>
                     <th>Description</th>
+                    <th>Origin</th>
+                    <th>PNL Group</th>
                 </tr>
             </thead>
             <tbody id="items-tbody">
                 {% for item in items %}
                 <tr onclick="window.location='/items/{{ item.item_id }}'" style="cursor:pointer;"
                     data-name="{{ item.item_name | lower }}"
-                    data-description="{{ (item.description or '') | lower }}">
+                    data-description="{{ (item.description or '') | lower }}"
+                    data-origin="{{ (item.origin or '') | lower }}"
+                    data-pnl="{{ (item.pnl_group or '') | lower }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ item.item_name }}</td>
                     <td>{{ item.description or '—' }}</td>
+                    <td>{{ item.origin or '—' }}</td>
+                    <td>{{ item.pnl_group or '—' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -35,7 +41,8 @@
     document.getElementById('filter-item').addEventListener('input', function () {
         const q = this.value.toLowerCase();
         document.querySelectorAll('#items-tbody tr').forEach(row => {
-            const match = !q || row.dataset.name.includes(q) || row.dataset.description.includes(q);
+            const match = !q || row.dataset.name.includes(q) || row.dataset.description.includes(q)
+                            || row.dataset.origin.includes(q) || row.dataset.pnl.includes(q);
             row.style.display = match ? '' : 'none';
         });
     });

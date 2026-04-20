@@ -169,19 +169,15 @@ def get_items():
         if item.get("status") == "inactive":
             continue
 
-        # Pull origin and pnl_group from custom fields if present
-        custom_fields = {cf['api_name']: cf.get('value', '') for cf in item.get('custom_fields', [])}
-        # Reporting tags: pnl_group is expected under a reporting tag named 'PnL Group'
-        # Adjust tag_name below to match the exact name in your Books account.
-        reporting_tags = item.get('reporting_tags', [])
-        pnl_group = ''
-        for tag in reporting_tags:
-            if tag.get('tag_name', '').lower() in ('pnl group', 'pnl_group', 'p&l group'):
-                tag_options = tag.get('tag_option_name', '') or tag.get('value', '')
-                pnl_group = tag_options
-                break
+        # Origin is a top-level custom field on the item object
+        origin = item.get('cf_origin_location', '')
 
-        origin = custom_fields.get('cf_origin', '') or custom_fields.get('cf_item_origin', '')
+        # P&L Group comes from the tags array
+        pnl_group = ''
+        for tag in item.get('tags', []):
+            if tag.get('tag_name') == 'P&L Group':
+                pnl_group = tag.get('tag_option_name', '')
+                break
 
         result.append({
             "id": item["item_id"],

@@ -12,16 +12,27 @@
     </div>
 
     <!-- Item Info -->
-    {% if item.description %}
     <div class="card mb-4">
         <div class="card-header">
-            <h5 class="mb-0">Description</h5>
+            <h5 class="mb-0">Item Info</h5>
         </div>
         <div class="card-body">
-            <p class="mb-0">{{ item.description }}</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <span class="text-muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Description</span>
+                    <p class="mb-0 mt-1">{{ item.description or '—' }}</p>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Origin</span>
+                    <p class="mb-0 mt-1">{{ item.origin or '—' }}</p>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">PNL Group</span>
+                    <p class="mb-0 mt-1">{{ item.pnl_group or '—' }}</p>
+                </div>
+            </div>
         </div>
     </div>
-    {% endif %}
 
     <!-- Contracts -->
     <div class="card mb-4">
@@ -56,7 +67,7 @@
                 </table>
             </div>
             {% else %}
-            <div class="p-4 text-muted">No contracts found for this item in the most recent 200 contracts.</div>
+            <div class="p-4 text-muted">No contracts found for this item.</div>
             {% endif %}
         </div>
     </div>
