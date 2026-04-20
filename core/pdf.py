@@ -18,7 +18,7 @@ def generate_contract_pdf(data, logo_path):
 
     Expected keys:
         date, contract_number, seller, buyer, quality,
-        quantity, uom, shipment, price, grades, weights,
+        quantity, uom, shipment, price, origin, grades, weights,
         governing_contract, discount, moisture, damage,
         heat_damage, foreign_materials, splits, payment,
         other_conditions, demurrage, broker
@@ -78,6 +78,8 @@ def generate_contract_pdf(data, logo_path):
     row("BUYER:", data.get('buyer', ''))
     y -= 0.04 * inch
     row("QUALITY:", data.get('quality', ''))
+    y -= 0.04 * inch
+    row("ORIGIN:", data.get('origin', ''))
     y -= 0.04 * inch
     row("QUANTITY:", f"{data.get('quantity', '')} {data.get('uom', '')}".strip())
     row("SHIPMENT:", data.get('shipment', ''))
@@ -153,5 +155,112 @@ def generate_contract_pdf(data, logo_path):
         y -= 11
 
     c.save()
+    buffer.seek(0)
+    return buffer
+
+
+def generate_contract_docx(data, logo_path):
+    """
+    Generate a contract DOCX from the same data dict as generate_contract_pdf.
+    Requires python-docx (add to requirements.txt: python-docx>=1.1.0).
+    """
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+
+    # Narrow margins
+    for section in doc.sections:
+        section.top_margin = Inches(0.6)
+        section.bottom_margin = Inches(0.6)
+        section.left_margin = Inches(0.75)
+        section.right_margin = Inches(0.75)
+
+    # Logo
+    try:
+        doc.add_picture(logo_path, width=Inches(7.0))
+        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    except Exception:
+        pass  # Logo missing — skip rather than crash
+
+    # Address block
+    addr = doc.add_paragraph()
+    addr.add_run("12500 Sherwood Drive, Leawood KS 66209\n"
+                 "1803 S Foothills Hwy., Suite P, Boulder, Colorado 80303\n"
+                 "Phone: (913) 491-3711  |  Phone: (303) 543-7033").font.size = Pt(8)
+
+    doc.add_paragraph("─" * 80)
+
+    def add_row(label, value):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(2)
+        run_label = p.add_run(f"{label}  ")
+        run_label.bold = True
+        run_label.font.size = Pt(9.5)
+        run_val = p.add_run(str(value) if value else '')
+        run_val.font.size = Pt(9.5)
+
+    # Header row
+    p_header = doc.add_paragraph()
+    p_header.paragraph_format.space_after = Pt(2)
+    r = p_header.add_run(f"DATE:  {data.get('date', '')}          CONTRACT:  {data.get('contract_number', '')}")
+    r.font.size = Pt(9.5)
+
+    add_row("SELLER:", data.get('seller', ''))
+    add_row("BUYER:", data.get('buyer', ''))
+    add_row("QUALITY:", data.get('quality', ''))
+    add_row("ORIGIN:", data.get('origin', ''))
+    add_row("QUANTITY:", f"{data.get('quantity', '')} {data.get('uom', '')}".strip())
+    add_row("SHIPMENT:", data.get('shipment', ''))
+    add_row("PRICE:", data.get('price', ''))
+    add_row("GRADES:", data.get('grades', ''))
+    add_row("WEIGHTS:", data.get('weights', ''))
+    add_row("GOVERNING CONTRACT:", data.get('governing_contract', ''))
+    add_row("DISCOUNT:", data.get('discount', ''))
+    add_row("MOISTURE:", data.get('moisture', ''))
+    add_row("DAMAGE:", data.get('damage', ''))
+    add_row("HEAT DAMAGE:", data.get('heat_damage', ''))
+    add_row("FOREIGN MATERIALS:", data.get('foreign_materials', ''))
+    add_row("SPLITS:", data.get('splits', ''))
+    add_row("PAYMENT:", data.get('payment', ''))
+
+    p_oc = doc.add_paragraph()
+    p_oc.paragraph_format.space_after = Pt(2)
+    r_oc = p_oc.add_run("OTHER CONDITIONS:\n")
+    r_oc.bold = True
+    r_oc.font.size = Pt(9.5)
+    r_oc2 = p_oc.add_run(data.get('other_conditions', ''))
+    r_oc2.font.size = Pt(9.5)
+
+    add_row("DEMURRAGE SCHEDULE:", data.get('demurrage', ''))
+
+    # Broker
+    p_broker = doc.add_paragraph()
+    p_broker.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p_broker.paragraph_format.space_before = Pt(12)
+    r_b = p_broker.add_run(f"{data.get('broker', '')}\nBROKER")
+    r_b.font.size = Pt(9.5)
+
+    # Signatures
+    p_sig = doc.add_paragraph()
+    p_sig.paragraph_format.space_before = Pt(16)
+    r_sig = p_sig.add_run("SELLER" + " " * 60 + "BUYER")
+    r_sig.font.size = Pt(9.5)
+
+    doc.add_paragraph("─" * 80)
+
+    footer_text = (
+        "Please communicate any discrepancies to us within one business day of receipt of this electronic "
+        "confirmation. If no discrepancies are reported it is assumed that all parties involved accept and "
+        "agree to all terms as outlined above. We thank you for your business and kindly ask you to promptly "
+        "sign and return a copy of this confirmation. However, the validity of this contract shall not be "
+        "affected by the non-return of a signed copy."
+    )
+    p_foot = doc.add_paragraph(footer_text)
+    p_foot.runs[0].font.size = Pt(8)
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
     buffer.seek(0)
     return buffer

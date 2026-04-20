@@ -29,14 +29,26 @@
 
         <!-- Filter Bar -->
         <div class="row g-2 mb-3">
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <input type="text" id="filter-buyer" class="form-control form-control-sm" placeholder="Buyer">
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <input type="text" id="filter-seller" class="form-control form-control-sm" placeholder="Seller">
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="filter-uom" class="form-select form-select-sm">
+                    <option value="">All UOMs</option>
+                    <option>metric tons</option>
+                    <option>bushels</option>
+                    <option>short tons</option>
+                    <option>LBS</option>
+                    <option>cars</option>
+                    <option>consulting</option>
+                    <option>other</option>
+                </select>
             </div>
             <div class="col-6 col-md-3">
                 <select id="filter-status" class="form-select form-select-sm">
@@ -67,7 +79,7 @@
                         data-quantity=""
                         data-seller_reference="{{ contract.get('cf_customer_ref', '') }}"
                         data-shipping_date_end="{{ contract.get('cf_shipping_date_end', '') }}"
-                        data-uom="{{ contract.get('cf_uom', '') }}"
+                        data-uom="{{ contract.get('cf_uom', '') | lower }}"
                         data-transportation="{{ contract.get('cf_trnspname', '') }}"
                         data-co_broker_name="{{ contract.get('cf_co_broker', '') }}"
                         data-number="{{ contract['salesorder_number'] | lower }}"
@@ -111,8 +123,8 @@
         shipping_date_end: 'date'
     };
 
-    const uomOptions = ['tons', 'bushels', 'short tons', 'LBS', 'Cars', 'consulting', 'other'];
-    const transportationOptions = ['Barge', 'Container', 'Containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'Consulting', 'Performance', 'Paper', 'Freight', 'Other'];
+    const uomOptions = ['metric tons', 'bushels', 'short tons', 'LBS', 'cars', 'consulting', 'other'];
+    const transportationOptions = ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'Consulting', 'Performance', 'Paper', 'Freight', 'Other'];
 
     const fieldSelect = document.getElementById('field-select');
     const tableWrapper = document.getElementById('table-wrapper');
@@ -123,18 +135,20 @@
         const number = document.getElementById('filter-number').value.toLowerCase();
         const buyer = document.getElementById('filter-buyer').value.toLowerCase();
         const seller = document.getElementById('filter-seller').value.toLowerCase();
+        const uom = document.getElementById('filter-uom').value.toLowerCase();
         const status = document.getElementById('filter-status').value.toLowerCase();
 
         rows.forEach(row => {
             const matchNumber = !number || row.dataset.number.includes(number);
             const matchBuyer = !buyer || row.dataset.buyer.includes(buyer);
             const matchSeller = !seller || row.dataset.seller.includes(seller);
+            const matchUom = !uom || row.dataset.uom === uom;
             const matchStatus = !status || row.dataset.status === status;
-            row.style.display = (matchNumber && matchBuyer && matchSeller && matchStatus) ? '' : 'none';
+            row.style.display = (matchNumber && matchBuyer && matchSeller && matchUom && matchStatus) ? '' : 'none';
         });
     }
 
-    ['filter-number', 'filter-buyer', 'filter-seller', 'filter-status'].forEach(id => {
+    ['filter-number', 'filter-buyer', 'filter-seller', 'filter-uom', 'filter-status'].forEach(id => {
         document.getElementById(id).addEventListener('input', applyFilters);
     });
 
