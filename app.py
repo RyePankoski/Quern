@@ -611,6 +611,13 @@ def dev_panel():
     return render_template('dev.html')
 
 
+# TEMPORARY - remove after first deployment
+@app.route('/init')
+def init_db():
+    first_time_startup()
+    return {'result': 'First time startup complete.'}
+
+
 @app.route('/dev/action/<action>', methods=['POST'])
 @login_required
 def dev_action(action):
