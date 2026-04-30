@@ -614,6 +614,7 @@ def dev_panel():
 # TEMPORARY - remove after first deployment
 @app.route('/init')
 def init_db():
+    db.create_all()
     first_time_startup()
     return {'result': 'First time startup complete.'}
 
