@@ -115,12 +115,14 @@ def new_contract():
     employees = Employee.query.all()
     locations = zoho.get_locations()
     prefill = None
+    prefill_brokers = []
     duplicate_id = request.args.get('duplicate')
     if duplicate_id:
         raw = zoho.get_sales_order(duplicate_id)
         prefill = zoho.contract_to_form_data(raw)
+        prefill_brokers = BrokerCommission.query.filter_by(books_sales_order_id=duplicate_id).all()
     return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill,
-                           locations=locations)
+                           prefill_brokers=prefill_brokers, locations=locations)
 
 
 @app.route('/bulk_edit')
@@ -235,8 +237,10 @@ def submit_contract_route():
     # First broker → salesperson_employee_id, second → second_broker_employee_id
     # The second broker goes to cf_split_broker in Books (resolved in zoho.submit_contract)
     broker_employees = request.form.getlist('broker_employee[]')
+    broker_percentages = request.form.getlist('broker_percentage[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+    form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
     # Concatenate booking numbers into a comma-separated string for customer_notes
     booking_numbers = request.form.getlist('booking_number[]')
@@ -301,7 +305,7 @@ def bulk_edit_save(salesorder_id):
     field = data.get('field')
     value = data.get('value')
 
-    allowed_fields = {'vessel_name', 'quantity', 'seller_reference', 'shipping_date_end',
+    allowed_fields = {'quantity', 'seller_reference', 'shipping_date_end',
                       'uom', 'transportation', 'co_broker_name'}
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
@@ -318,8 +322,10 @@ def bulk_edit_save(salesorder_id):
     else:
         form_data['salesperson_employee_id'] = ''
 
-    # booking_numbers_concat: preserve existing customer_notes
-    form_data['booking_numbers_concat'] = contract.get('customer_notes', '')
+
+    # Rebuild booking numbers from local Shipment table so cf_custom_customer_notes is preserved
+    local_shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
+    form_data['booking_numbers_concat'] = ','.join(s.booking_number for s in local_shipments if s.booking_number)
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
@@ -339,8 +345,10 @@ def update_contract(salesorder_id):
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
     broker_employees = request.form.getlist('broker_employee[]')
+    broker_percentages = request.form.getlist('broker_percentage[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
+    form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
     # Concatenate booking numbers for customer_notes
     booking_numbers = request.form.getlist('booking_number[]')
@@ -641,6 +649,8 @@ def dev_debug(target):
         result = debug_first_contract()
     elif target == 'locations':
         result = debug_locations()
+    elif target == 'reporting_tags':
+        result = zoho.debug_reporting_tags()
     else:
         result = {'error': f'Unknown debug target: {target}'}
     return result
@@ -683,14 +693,15 @@ def save_contract_meta(salesorder_id):
 
     # Wipe and replace shipments
     Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
-    vessel_names = request.form.getlist('vessel_name[]')
     booking_numbers = request.form.getlist('booking_number[]')
-    for vessel, booking in zip(vessel_names, booking_numbers):
-        if vessel or booking:
+    shipment_quantities = request.form.getlist('shipment_quantity[]')
+    for booking, qty in zip(booking_numbers, shipment_quantities):
+        if booking:
+            qty_val = float(qty) if qty else None
             shipment = Shipment(
                 books_sales_order_id=salesorder_id,
-                vessel_name=vessel,
-                booking_number=booking
+                booking_number=booking,
+                quantity=qty_val
             )
             db.session.add(shipment)
 
@@ -702,10 +713,11 @@ def save_contract_meta(salesorder_id):
 @login_required
 def add_shipment(salesorder_id):
     data = request.get_json()
+    qty_val = data.get('quantity')
     shipment = Shipment(
         books_sales_order_id=salesorder_id,
-        vessel_name=data.get('vessel_name', ''),
-        booking_number=data.get('booking_number', '')
+        booking_number=data.get('booking_number', ''),
+        quantity=float(qty_val) if qty_val else None
     )
     db.session.add(shipment)
     db.session.commit()
@@ -851,5 +863,4 @@ def wipe_users():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        sync_items()
     app.run(debug=True, host='0.0.0.0')

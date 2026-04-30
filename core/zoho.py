@@ -133,13 +133,15 @@ def sync_items():
             existing.description = item.get('description', '')
             existing.origin = item.get('origin', '')
             existing.pnl_group = item.get('pnl_group', '')
+            existing.pnl_group_tag_option_id = item.get('pnl_group_tag_option_id', '')
         else:
             new_item = Item(
                 item_id=item['id'],
                 item_name=item['name'],
                 description=item.get('description', ''),
                 origin=item.get('origin', ''),
-                pnl_group=item.get('pnl_group', '')
+                pnl_group=item.get('pnl_group', ''),
+                pnl_group_tag_option_id=item.get('pnl_group_tag_option_id', '')
             )
             db.session.add(new_item)
     db.session.commit()
@@ -174,9 +176,11 @@ def get_items():
 
         # P&L Group comes from the tags array
         pnl_group = ''
+        pnl_group_tag_option_id = ''
         for tag in item.get('tags', []):
             if tag.get('tag_name') == 'P&L Group':
                 pnl_group = tag.get('tag_option_name', '')
+                pnl_group_tag_option_id = tag.get('tag_option_id', '')
                 break
 
         result.append({
@@ -185,6 +189,7 @@ def get_items():
             "description": item.get("description", ""),
             "origin": origin,
             "pnl_group": pnl_group,
+            "pnl_group_tag_option_id": pnl_group_tag_option_id,
         })
 
     return result
@@ -311,6 +316,24 @@ def get_next_test_number():
     return f'TEST-{next_num:03d}'
 
 
+def debug_reporting_tags():
+    token = get_access_token()
+    orders = get_sales_orders(page=1)
+    result = []
+    for order in orders[:10]:
+        so = get_sales_order(order['salesorder_id'])
+        for item in so.get('line_items', []):
+            tags = item.get('tags', [])
+            if tags:
+                result.append({
+                    'salesorder_number': so.get('salesorder_number'),
+                    'location_name': so.get('location_name'),
+                    'tags': tags
+                })
+                break
+    return result
+
+
 def get_locations():
     return [
         {'branch_id': '4435369000015041009', 'branch_name': 'Head Office'},
@@ -333,45 +356,69 @@ def submit_contract(form_data):
     # Concatenate booking numbers into customer_notes
     booking_numbers = form_data.get('booking_numbers_concat', '')
 
-    # Resolve second broker to Zoho salesperson ID
-    second_broker_zoho_id = ''
+    # Resolve broker names for Zoho payload
+    from core.models import Employee
+    second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
     if second_broker_emp_id:
-        from core.models import Employee
         second_emp = Employee.query.get(second_broker_emp_id)
-        if second_emp and second_emp.salesperson_id:
-            second_broker_zoho_id = second_emp.salesperson_id
+        if second_emp:
+            second_broker_name = second_emp.employee_name or ''
 
-    # Resolve first broker to Zoho salesperson ID
-    salesperson_zoho_id = ''
+    salesperson_name = ''
     first_broker_emp_id = form_data.get('salesperson_employee_id', '')
     if first_broker_emp_id:
-        from core.models import Employee
         first_emp = Employee.query.get(first_broker_emp_id)
-        if first_emp and first_emp.salesperson_id:
-            salesperson_zoho_id = first_emp.salesperson_id
+        if first_emp:
+            salesperson_name = first_emp.employee_name or ''
 
     custom_fields = [
-        {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
-        {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-        {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
-        {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
-        {"api_name": "cf_uom", "value": form_data.get('uom')},
-        {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
-        {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
-        {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
-        {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
+        cf for cf in [
+            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
+            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
+            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
+        ] if cf['value']
     ]
-    if second_broker_zoho_id:
-        custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_zoho_id})
+    if second_broker_name:
+        custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
+        second_broker_pct = form_data.get('second_broker_percentage', '')
+        if second_broker_pct:
+            custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
+
+    commodity_item = Item.query.get(form_data.get('commodity', ''))
+    pnl_group = commodity_item.pnl_group if commodity_item and commodity_item.pnl_group else None
+    office_name = form_data.get('location_name', '')
+
+    location_map = {l['branch_name']: l['branch_id'] for l in get_locations()}
+    office_tag_option_id = location_map.get(office_name, '')
+
+    line_item_tags = []
+    if pnl_group and commodity_item.pnl_group_tag_option_id:
+        line_item_tags.append({
+            "tag_id": "4435369000000000335",
+            "tag_name": "P&L Group",
+            "tag_option_id": commodity_item.pnl_group_tag_option_id,
+            "tag_option_name": pnl_group,
+        })
+    if office_name and office_tag_option_id:
+        line_item_tags.append({
+            "tag_id": "4435369000000000333",
+            "tag_name": "Office",
+            "tag_option_id": office_tag_option_id,
+            "tag_option_name": office_name,
+        })
 
     payload = {
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date'),
+        "shipment_date": form_data.get('shipping_date_end'),
+        "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
-        "customer_notes": booking_numbers,
         "terms": form_data.get('terms'),
         "location_id": form_data.get('location_id'),
         "line_items": [
@@ -379,13 +426,15 @@ def submit_contract(form_data):
                 "item_id": form_data.get('commodity'),
                 "quantity": form_data.get('quantity', 1),
                 "rate": form_data.get('commission_rate'),
+                **({"group_name": pnl_group} if pnl_group else {}),
+                **({"tags": line_item_tags} if line_item_tags else {}),
             }
         ],
         "custom_fields": custom_fields,
     }
 
-    if salesperson_zoho_id:
-        payload["salesperson_id"] = salesperson_zoho_id
+    if salesperson_name:
+        payload["salesperson_name"] = salesperson_name
 
     response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
@@ -404,57 +453,83 @@ def update_contract(salesorder_id, form_data):
     # Concatenate booking numbers into customer_notes
     booking_numbers = form_data.get('booking_numbers_concat', '')
 
-    # Resolve second broker to Zoho salesperson ID
-    second_broker_zoho_id = ''
+    # Resolve broker names for Zoho payload
+    from core.models import Employee
+    second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
     if second_broker_emp_id:
-        from core.models import Employee
         second_emp = Employee.query.get(second_broker_emp_id)
-        if second_emp and second_emp.salesperson_id:
-            second_broker_zoho_id = second_emp.salesperson_id
+        if second_emp:
+            second_broker_name = second_emp.employee_name or ''
 
-    # Resolve first broker to Zoho salesperson ID
-    salesperson_zoho_id = ''
+    salesperson_name = ''
     first_broker_emp_id = form_data.get('salesperson_employee_id', '')
     if first_broker_emp_id:
-        from core.models import Employee
         first_emp = Employee.query.get(first_broker_emp_id)
-        if first_emp and first_emp.salesperson_id:
-            salesperson_zoho_id = first_emp.salesperson_id
+        if first_emp:
+            salesperson_name = first_emp.employee_name or ''
 
     custom_fields = [
-        {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
-        {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-        {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
-        {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
-        {"api_name": "cf_uom", "value": form_data.get('uom')},
-        {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
-        {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
-        {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
-        {"api_name": "cf_shipping_date_end", "value": form_data.get('shipping_date_end')},
+        cf for cf in [
+            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
+            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
+            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
+        ] if cf['value']
     ]
-    if second_broker_zoho_id:
-        custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_zoho_id})
+    if second_broker_name:
+        custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
+        second_broker_pct = form_data.get('second_broker_percentage', '')
+        if second_broker_pct:
+            custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
+
+    commodity_item = Item.query.get(form_data.get('commodity', ''))
+    pnl_group = commodity_item.pnl_group if commodity_item and commodity_item.pnl_group else None
+    office_name = form_data.get('location_name', '')
+
+    location_map = {l['branch_name']: l['branch_id'] for l in get_locations()}
+    office_tag_option_id = location_map.get(office_name, '')
+
+    line_item_tags = []
+    if pnl_group and commodity_item.pnl_group_tag_option_id:
+        line_item_tags.append({
+            "tag_id": "4435369000000000335",
+            "tag_name": "P&L Group",
+            "tag_option_id": commodity_item.pnl_group_tag_option_id,
+            "tag_option_name": pnl_group,
+        })
+    if office_name and office_tag_option_id:
+        line_item_tags.append({
+            "tag_id": "4435369000000000333",
+            "tag_name": "Office",
+            "tag_option_id": office_tag_option_id,
+            "tag_option_name": office_name,
+        })
 
     payload = {
         "customer_id": form_data.get('seller'),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date'),
+        "shipment_date": form_data.get('shipping_date_end'),
+        "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
-        "customer_notes": booking_numbers,
         "terms": form_data.get('terms'),
         "line_items": [
             {
                 "item_id": form_data.get('commodity'),
                 "quantity": form_data.get('quantity'),
                 "rate": form_data.get('commission_rate'),
+                **({"group_name": pnl_group} if pnl_group else {}),
+                **({"tags": line_item_tags} if line_item_tags else {}),
             }
         ],
         "custom_fields": custom_fields,
     }
 
-    if salesperson_zoho_id:
-        payload["salesperson_id"] = salesperson_zoho_id
+    if salesperson_name:
+        payload["salesperson_name"] = salesperson_name
 
     response = requests.put(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
@@ -471,9 +546,15 @@ def contract_to_form_data(contract):
     """Convert a raw Books sales order dict to a flat form_data dict."""
     custom = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
     line_items = contract.get('line_items', [{}])
+
+    # cf_buyer stores the buyer name; resolve it to a customer_id for form prefill
+    buyer_name = custom.get('cf_buyer', '')
+    buyer_customer = Customer.query.filter_by(customer_name=buyer_name).first() if buyer_name else None
+    buyer_id = buyer_customer.customer_id if buyer_customer else ''
+
     return {
         'seller': contract.get('customer_id', ''),
-        'buyer': custom.get('cf_buyer', ''),
+        'buyer': buyer_id,
         'contract_date': contract.get('date', ''),
         'shipping_date': contract.get('shipment_date', ''),
         'delivery_notes': contract.get('notes', ''),
@@ -482,18 +563,17 @@ def contract_to_form_data(contract):
         'commission_rate': line_items[0].get('rate', '') if line_items else '',
         'quantity': line_items[0].get('quantity', '') if line_items else '',
         'commodity_rate': custom.get('cf_item_contract_price', ''),
-        'vessel_name': custom.get('cf_vessel_name', ''),
         'transportation': custom.get('cf_trnspname', ''),
         'uom': custom.get('cf_uom', ''),
         'seller_reference': custom.get('cf_customer_ref', ''),
         'co_broker_name': custom.get('cf_co_broker', ''),
         'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
-        'shipping_date_end': custom.get('cf_shipping_date_end', ''),
+        'shipping_date_end': custom.get('cf_shipment_end_date', ''),
         'location_id': contract.get('location_id', ''),
         'location_name': contract.get('location_name', ''),
         # salesperson_employee_id and second_broker_employee_id are not stored here
         # because they come from the broker subform on submit/update, not from Books.
-        # booking_numbers_concat is also assembled at submit/update time from form data.
+        # booking_numbers_concat is assembled at submit/update time from the local Shipment table.
     }
 
 
