@@ -13,14 +13,24 @@
                 <tr>
                     <th>#</th>
                     <th>Name</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Country</th>
                 </tr>
             </thead>
             <tbody id="counterparties-tbody">
                 {% for customer in customers %}
                 <tr onclick="window.location='/counterparties/{{ customer.customer_id }}'" style="cursor:pointer;"
-                    data-name="{{ customer.customer_name | lower }}">
+                    data-name="{{ customer.customer_name | lower }}"
+                    data-city="{{ (customer.city or '') | lower }}"
+                    data-state="{{ (customer.state or '') | lower }}"
+                    data-country="{{ (customer.country or '') | lower }}"
+                    data-address="{{ (customer.address or '') | lower }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ customer.customer_name }}</td>
+                    <td>{{ customer.city or '—' }}</td>
+                    <td>{{ customer.state or '—' }}</td>
+                    <td>{{ customer.country or '—' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -32,7 +42,13 @@
     document.getElementById('filter-counterparty').addEventListener('input', function () {
         const q = this.value.toLowerCase();
         document.querySelectorAll('#counterparties-tbody tr').forEach(row => {
-            row.style.display = (!q || row.dataset.name.includes(q)) ? '' : 'none';
+            const match = !q ||
+                row.dataset.name.includes(q) ||
+                row.dataset.city.includes(q) ||
+                row.dataset.state.includes(q) ||
+                row.dataset.country.includes(q) ||
+                row.dataset.address.includes(q);
+            row.style.display = match ? '' : 'none';
         });
     });
 </script>
