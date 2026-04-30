@@ -615,8 +615,25 @@ def dev_panel():
 @app.route('/init')
 def init_db():
     db.create_all()
-    first_time_startup()
-    return {'result': 'First time startup complete.'}
+    wipe_tasks()
+    seed_tasks()
+    create_user()
+    return {'result': 'DB initialized. Now hit /init/items, /init/customers, /init/employees in order.'}
+
+@app.route('/init/items')
+def init_items():
+    sync_items()
+    return {'result': 'Items synced.'}
+
+@app.route('/init/customers')
+def init_customers():
+    sync_customers()
+    return {'result': 'Customers synced.'}
+
+@app.route('/init/employees')
+def init_employees():
+    sync_employees()
+    return {'result': 'Employees synced.'}
 
 
 @app.route('/dev/action/<action>', methods=['POST'])
