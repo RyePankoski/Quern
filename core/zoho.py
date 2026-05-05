@@ -389,29 +389,6 @@ def submit_contract(form_data):
         if second_broker_pct:
             custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
 
-    commodity_item = Item.query.get(form_data.get('commodity', ''))
-    pnl_group = commodity_item.pnl_group if commodity_item and commodity_item.pnl_group else None
-    office_name = form_data.get('location_name', '')
-
-    location_map = {l['branch_name']: l['branch_id'] for l in get_locations()}
-    office_tag_option_id = location_map.get(office_name, '')
-
-    line_item_tags = []
-    if pnl_group and commodity_item.pnl_group_tag_option_id:
-        line_item_tags.append({
-            "tag_id": "4435369000000000335",
-            "tag_name": "P&L Group",
-            "tag_option_id": commodity_item.pnl_group_tag_option_id,
-            "tag_option_name": pnl_group,
-        })
-    if office_name and office_tag_option_id:
-        line_item_tags.append({
-            "tag_id": "4435369000000000333",
-            "tag_name": "Office",
-            "tag_option_id": office_tag_option_id,
-            "tag_option_name": office_name,
-        })
-
     payload = {
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
@@ -426,8 +403,6 @@ def submit_contract(form_data):
                 "item_id": form_data.get('commodity'),
                 "quantity": form_data.get('quantity', 1),
                 "rate": form_data.get('commission_rate'),
-                **({"group_name": pnl_group} if pnl_group else {}),
-                **({"tags": line_item_tags} if line_item_tags else {}),
             }
         ],
         "custom_fields": custom_fields,
@@ -486,29 +461,6 @@ def update_contract(salesorder_id, form_data):
         if second_broker_pct:
             custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
 
-    commodity_item = Item.query.get(form_data.get('commodity', ''))
-    pnl_group = commodity_item.pnl_group if commodity_item and commodity_item.pnl_group else None
-    office_name = form_data.get('location_name', '')
-
-    location_map = {l['branch_name']: l['branch_id'] for l in get_locations()}
-    office_tag_option_id = location_map.get(office_name, '')
-
-    line_item_tags = []
-    if pnl_group and commodity_item.pnl_group_tag_option_id:
-        line_item_tags.append({
-            "tag_id": "4435369000000000335",
-            "tag_name": "P&L Group",
-            "tag_option_id": commodity_item.pnl_group_tag_option_id,
-            "tag_option_name": pnl_group,
-        })
-    if office_name and office_tag_option_id:
-        line_item_tags.append({
-            "tag_id": "4435369000000000333",
-            "tag_name": "Office",
-            "tag_option_id": office_tag_option_id,
-            "tag_option_name": office_name,
-        })
-
     payload = {
         "customer_id": form_data.get('seller'),
         "date": form_data.get('contract_date'),
@@ -521,8 +473,6 @@ def update_contract(salesorder_id, form_data):
                 "item_id": form_data.get('commodity'),
                 "quantity": form_data.get('quantity'),
                 "rate": form_data.get('commission_rate'),
-                **({"group_name": pnl_group} if pnl_group else {}),
-                **({"tags": line_item_tags} if line_item_tags else {}),
             }
         ],
         "custom_fields": custom_fields,
