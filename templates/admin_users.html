@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4" style="max-width: 860px;">
+
+    <div class="d-flex align-items-center mb-4 gap-3">
+        <h4 class="mb-0" style="letter-spacing:0.05em;">Users</h4>
+        <span class="badge bg-secondary">{{ users|length }}</span>
+    </div>
+
+    <!-- Add User -->
+    <div class="card mb-4">
+        <div class="card-header">Add User</div>
+        <div class="card-body">
+            <form method="POST" action="/admin/users/create">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" placeholder="user@mcdonaldpelz.com" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Display Name</label>
+                        <input type="text" name="display_name" class="form-control" placeholder="First Last">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Role</label>
+                        <select name="role" class="form-select">
+                            <option value="broker">Broker</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-success w-100">Add</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User List -->
+    <div class="card">
+        <div class="card-header">Current Users</div>
+        <div class="card-body p-0">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted);">
+                        <th class="ps-3">Email</th>
+                        <th>Display Name</th>
+                        <th>Role</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="ps-3 align-middle">
+                        {{ u.email }}
+                        {% if u.id == current_user.id %}
+                        <span class="badge bg-secondary ms-1" style="font-size:0.65rem;">you</span>
+                        {% endif %}
+                    </td>
+                    <td class="align-middle">{{ u.display_name or '—' }}</td>
+                    <td class="align-middle">
+                        <form method="POST" action="/admin/users/{{ u.id }}/role" class="d-flex gap-2 align-items-center">
+                            <select name="role" class="form-select form-select-sm" style="width:120px;"
+                                {% if u.id == current_user.id %}disabled{% endif %}>
+                                <option value="broker" {% if u.role == 'broker' %}selected{% endif %}>Broker</option>
+                                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                            {% if u.id != current_user.id %}
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Save</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                    <td class="align-middle text-end pe-3">
+                        {% if u.id != current_user.id %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/delete"
+                              onsubmit="return confirm('Remove {{ u.email }}?')">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-muted py-4">No users found.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

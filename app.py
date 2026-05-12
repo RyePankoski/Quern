@@ -1,6 +1,6 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item
-from flask import Flask, render_template, request, redirect, flash, send_file
+from flask import Flask, render_template, request, redirect, flash, send_file, session
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
     BrokerCommission
 from core.tasks import generate_tasks, check_task_reactivity
@@ -19,6 +19,17 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            flash('Admin access required.', 'danger')
+            return redirect('/')
+        return f(*args, **kwargs)
+    return decorated
 
 
 # Routes to move to a new page
@@ -217,6 +228,7 @@ def tasks_view():
 
 @app.route('/admin/audit')
 @login_required
+@admin_required
 def audit_log_view():
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(200).all()
     return render_template('admin_audit.html', logs=logs)
@@ -284,7 +296,7 @@ def submit_contract_route():
         db.session.commit()
 
         log = AuditLog(
-            user=current_user.username,
+            user=current_user.email,
             method='POST',
             path='/submit_contract',
             salesorder_id=salesorder_id,
@@ -417,7 +429,7 @@ def audit_log():
     salesorder_id = parts[1] if len(parts) >= 2 and parts[0] == 'contracts' else None
 
     log = AuditLog(
-        user=current_user.username,
+        user=current_user.email,
         method=request.method,
         path=path,
         salesorder_id=salesorder_id,
@@ -430,17 +442,65 @@ def audit_log():
 # User auth and login routes
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login')
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
-        if user and user.check_password(password):
-            login_user(user)
-            return redirect('/')
-        flash('Invalid username or password.', 'danger')
-    return render_template('login.html')
+    """Kick off Azure AD OAuth flow."""
+    import secrets
+    from core.auth import build_auth_url
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    return redirect(build_auth_url(state))
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    """Handle the OAuth callback from Azure AD."""
+    from core.auth import acquire_token_by_code
+
+    # If the user is already logged in, this is a duplicate callback
+    # (browser prefetch, retry, etc). Don't run the flow again.
+    if current_user.is_authenticated:
+        return redirect('/')
+
+    # CSRF check
+    if request.args.get('state') != session.pop('oauth_state', None):
+        flash('Authentication state mismatch. Please try again.', 'danger')
+        return redirect('/login')
+
+    # Azure AD error (e.g. user cancelled)
+    if 'error' in request.args:
+        flash(f"Sign-in failed: {request.args.get('error_description', request.args.get('error'))}", 'danger')
+        return redirect('/login')
+
+    code = request.args.get('code')
+    if not code:
+        flash('No authorization code returned.', 'danger')
+        return redirect('/login')
+
+    result = acquire_token_by_code(code)
+    if 'error' in result:
+        flash(f"Token exchange failed: {result.get('error_description', result.get('error'))}", 'danger')
+        return redirect('/login')
+
+    claims = result.get('id_token_claims', {})
+    email = (claims.get('preferred_username') or claims.get('email') or '').strip().lower()
+    if not email:
+        flash('Microsoft account did not return an email.', 'danger')
+        return redirect('/login')
+
+    # Local gatekeeping: account must be pre-provisioned in Quern.
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        flash(f'{email} is not authorized for Quern. Contact an admin.', 'danger')
+        return redirect('/login')
+
+    # Optionally backfill display_name from the token on first login
+    if not user.display_name and claims.get('name'):
+        user.display_name = claims.get('name')
+        db.session.commit()
+
+    login_user(user)
+    return redirect('/')
 
 
 @login_manager.user_loader
@@ -452,13 +512,20 @@ def load_user(user_id):
 @login_required
 def logout():
     logout_user()
-    return redirect('/login')
+    session.clear()
+    return redirect('/logged-out')
+
+
+@app.route('/logged-out')
+def logged_out():
+    return render_template('logged_out.html')
 
 
 # Admin task template creation.
 
 @app.route('/admin/templates')
 @login_required
+@admin_required
 def admin_templates():
     templates = TaskTemplate.query.order_by(TaskTemplate.country, TaskTemplate.order).all()
     return render_template('admin_templates.html', templates=templates)
@@ -466,6 +533,7 @@ def admin_templates():
 
 @app.route('/admin/templates/create', methods=['POST'])
 @login_required
+@admin_required
 def create_template():
     order = request.form.get('order', '').strip()
     template = TaskTemplate(
@@ -482,6 +550,7 @@ def create_template():
 
 @app.route('/admin/templates/<int:template_id>/update', methods=['POST'])
 @login_required
+@admin_required
 def update_template(template_id):
     template = TaskTemplate.query.get(template_id)
     if not template:
@@ -498,6 +567,7 @@ def update_template(template_id):
 
 @app.route('/admin/templates/<int:template_id>/delete', methods=['POST'])
 @login_required
+@admin_required
 def delete_template(template_id):
     template = TaskTemplate.query.get(template_id)
     if not template:
@@ -856,15 +926,79 @@ def first_time_startup():
     create_user()
 
 
-def create_user():
-    if User.query.first():
-        return 'User already exists'
-    user = User()
-    user.username = 'admin'
-    user.set_password('rdp96')
-    db.session.add(user)
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.role, User.display_name).all()
+    return render_template('admin_users.html', users=users)
+
+
+@app.route('/admin/users/create', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_user():
+    email = request.form.get('email', '').strip().lower()
+    display_name = request.form.get('display_name', '').strip()
+    role = request.form.get('role', 'broker')
+    if not email:
+        flash('Email is required.', 'danger')
+        return redirect('/admin/users')
+    if User.query.filter_by(email=email).first():
+        flash(f'{email} already exists.', 'warning')
+        return redirect('/admin/users')
+    db.session.add(User(email=email, display_name=display_name, role=role))
     db.session.commit()
-    return redirect('/logout')
+    flash(f'User {email} added.', 'success')
+    return redirect('/admin/users')
+
+
+@app.route('/admin/users/<int:user_id>/role', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_user_role(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect('/admin/users')
+    new_role = request.form.get('role')
+    if new_role not in ('admin', 'broker'):
+        flash('Invalid role.', 'danger')
+        return redirect('/admin/users')
+    user.role = new_role
+    db.session.commit()
+    flash(f'{user.email} role updated to {new_role}.', 'success')
+    return redirect('/admin/users')
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect('/admin/users')
+    if user.id == current_user.id:
+        flash('Cannot delete your own account.', 'danger')
+        return redirect('/admin/users')
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'{user.email} removed.', 'success')
+    return redirect('/admin/users')
+
+
+def create_user():
+    seed_users = [
+        ('rye@mcdonaldpelz.com', 'Rye Pankoski', 'admin'),
+        ('julia@mcdonaldpelz.com', 'Julia', 'admin'),
+        ('enrique@mcdonaldpelz.com', 'Enrique', 'broker'),
+    ]
+    for email, display_name, role in seed_users:
+        if not User.query.filter_by(email=email).first():
+            db.session.add(User(email=email, display_name=display_name, role=role))
+    db.session.commit()
+    return 'Users seeded.'
 
 
 def wipe_tasks():
