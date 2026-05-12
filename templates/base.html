@@ -105,7 +105,10 @@
                 <a class="nav-link" href="/counterparties">Counterparties</a>
                 <a class="nav-link" href="/items">Items</a>
                 <a class="nav-link" href="/employees">Employees</a>
+                {% if current_user.is_admin %}
                 <a class="nav-link" href="/admin/templates" style="color:#c8961a;">Templates</a>
+                <a class="nav-link" href="/admin/users" style="color:#c8961a;">Users</a>
+                {% endif %}
             </div>
             <div class="navbar-nav">
                 <a class="nav-link text-danger" href="/logout">Sign Out</a>
@@ -132,9 +135,11 @@
     {% block content %}{% endblock %}
 </main>
 
+{% if current_user.is_admin %}
 <a href="/admin/audit" class="btn btn-danger shadow"
    style="position:fixed; bottom:2rem; right:2rem; z-index:3500; padding:0.75rem 1.5rem; border-radius: 50px;"
    data-no-overlay>Audit System</a>
+{% endif %}
 
 <div id="loading-overlay">
     <img src="{{ url_for('static', filename='img/loading.png') }}"
