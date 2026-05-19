@@ -58,15 +58,7 @@ def item_detail(item_id):
     # Use the item-filtered endpoint instead of fetching all orders and
     # scanning line items — the list endpoint does not return line_items,
     # so the old approach always produced zero results.
-    orders = get_sales_orders_for_item(item_id)
-    customer_map = {c.customer_id: c.customer_name for c in Customer.query.all()}
-
-    contracts = []
-    for order in orders:
-        buyer_id = order.get('cf_buyer', '')
-        order['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
-        contracts.append(order)
-
+    contracts = Contract.query.filter_by(item_id=item_id).order_by(Contract.date.desc()).all()
     return render_template('item_detail.html', item=item, contracts=contracts)
 
 
@@ -85,16 +77,9 @@ def counterparty_detail(customer_id):
         flash('Counterparty not found.', 'danger')
         return redirect('/counterparties')
 
-    # Fetch all contracts and filter by buyer or seller
-    orders = get_sales_orders()
-    customer_map = {c.customer_id: c.customer_name for c in Customer.query.all()}
-
-    contracts = []
-    for order in orders:
-        buyer_id = order.get('cf_buyer', '')
-        order['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
-        if order.get('customer_id') == customer_id or buyer_id == customer_id:
-            contracts.append(order)
+    contracts = Contract.query.filter(
+        db.or_(Contract.customer_id == customer_id, Contract.cf_buyer_id == customer_id)
+    ).order_by(Contract.date.desc()).all()
 
     return render_template('counterparty_detail.html', customer=customer, contracts=contracts)
 
@@ -140,66 +125,81 @@ def new_contract():
 @app.route('/bulk_edit')
 @login_required
 def bulk_edit():
-    orders = get_sales_orders()
-    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
-    meta_map = {m.salesorder_id: m for m in Contract.query.all()}
-    for contract in orders:
-        buyer_id = contract.get('cf_buyer', '')
-        contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
-        meta = meta_map.get(contract.get('salesorder_id', ''))
-        contract['buyer_reference'] = meta.buyer_reference if meta and meta.buyer_reference else ''
-    return render_template('bulk_edit.html', contracts=orders)
+    contracts = Contract.query.order_by(Contract.date.desc()).all()
+    return render_template('bulk_edit.html', contracts=contracts)
 
 
 @app.route('/contracts')
 @login_required
 def contracts():
-    page = request.args.get('page', 1, type=int)
-    orders = get_sales_orders(page=page)
-    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
-    for contract in orders:
-        buyer_id = contract.get('cf_buyer', '')
-        contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
-    return render_template('contracts.html', contracts=orders, page=page)
+    contracts = Contract.query.order_by(Contract.date.desc()).all()
+    return render_template('contracts.html', contracts=contracts, page=1)
 
 
 @app.route('/contracts/<salesorder_id>')
 @login_required
 def contract_detail(salesorder_id):
-    contract = zoho.get_sales_order(salesorder_id)
+    c = Contract.query.get(salesorder_id)
+    if not c:
+        flash('Contract not found.', 'danger')
+        return redirect('/contracts')
 
-    custom_fields = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
-    contract['custom'] = custom_fields
+    # Build a dict that mirrors the old Zoho response shape for the template
+    contract = {
+        'salesorder_id': c.salesorder_id,
+        'salesorder_number': c.salesorder_number,
+        'status': c.status,
+        'date': c.date,
+        'shipment_date': c.shipment_date,
+        'customer_id': c.customer_id,
+        'customer_name': c.customer_name,
+        'salesperson_name': c.salesperson_name,
+        'salesperson_id': c.salesperson_id,
+        'location_id': c.location_id,
+        'location_name': c.location_name,
+        'notes': c.notes,
+        'terms': c.terms,
+        'line_items': [{
+            'item_id': c.item_id,
+            'name': c.item_name,
+            'rate': c.rate,
+            'quantity': c.quantity,
+        }] if c.item_id else [],
+        'custom': {
+            'cf_buyer': c.cf_buyer,
+            'cf_item_contract_price': c.cf_item_contract_price,
+            'cf_trnspname': c.cf_trnspname,
+            'cf_uom': c.cf_uom,
+            'cf_customer_ref': c.cf_customer_ref,
+            'cf_co_broker': c.cf_co_broker,
+            'cf_co_brokerage_rate': c.cf_co_brokerage_rate,
+            'cf_split_broker': c.cf_split_broker,
+            'cf_split_percentage': c.cf_split_percentage,
+            'cf_vessel_name': c.cf_vessel_name,
+            'cf_shipment_end_date': c.cf_shipment_end_date,
+        },
+    }
 
-    all_customers = Customer.query.all()
-    customer_map = {c.customer_id: c.customer_name for c in all_customers}
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
-
-    buyer_id = contract['custom'].get('cf_buyer', '')
-    contract['custom']['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
-
-    items = Item.query.filter_by(is_active=True).order_by(Item.item_name).all()
+    items = Item.query.order_by(Item.item_name).all()
 
     tasks = Task.query.filter_by(
         books_sales_order_id=salesorder_id
     ).join(TaskTemplate).order_by(TaskTemplate.order).all()
 
-    meta = Contract.query.get(salesorder_id)
     shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
     commissions = BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).all()
     notes = ContractNote.query.filter_by(books_sales_order_id=salesorder_id).order_by(ContractNote.created_at).all()
     employees = Employee.query.all()
     employee_map = {e.employee_id: e.employee_name for e in employees}
 
-    # Find the employee record matching the contract's salesperson
-    salesperson_zoho_id = contract.get('salesperson_id', '')
     salesperson_employee = next(
-        (e for e in employees if e.salesperson_id == salesperson_zoho_id), None
+        (e for e in employees if e.salesperson_id == c.salesperson_id), None
     )
 
     return render_template('contract_detail.html',
                            contract=contract, customers=customers, items=items,
-                           tasks=tasks, meta=meta, shipments=shipments,
+                           tasks=tasks, meta=c, shipments=shipments,
                            commissions=commissions, notes=notes, employee_map=employee_map,
                            salesperson_employee=salesperson_employee)
 
@@ -214,16 +214,15 @@ def tasks_view():
         func.sum(db.case((Task.status == 'pending', 1), else_=0)).label('pending')
     ).group_by(Task.books_sales_order_id).all()
 
-    orders = get_sales_orders()
-    contract_map = {o['salesorder_id']: o for o in orders}
+    contract_map = {c.salesorder_id: c for c in Contract.query.all()}
 
     task_list = []
     for row in task_counts:
-        contract = contract_map.get(row.books_sales_order_id, {})
+        contract = contract_map.get(row.books_sales_order_id)
         task_list.append({
             'salesorder_id': row.books_sales_order_id,
-            'salesorder_number': contract.get('salesorder_number', row.books_sales_order_id),
-            'location_name': contract.get('location_name', ''),
+            'salesorder_number': contract.salesorder_number if contract else row.books_sales_order_id,
+            'location_name': contract.location_name if contract else '',
             'total': row.total,
             'pending': row.pending
         })
@@ -649,13 +648,8 @@ def confirm_task(task_id):
 @app.route('/api/contracts')
 @login_required
 def contracts_json():
-    page = request.args.get('page', 1, type=int)
-    orders = get_sales_orders(page=page)
-    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
-    for contract in orders:
-        buyer_id = contract.get('cf_buyer', '')
-        contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
-    return {'contracts': orders, 'page': page}
+    # Load more is no longer needed — all contracts are local
+    return {'contracts': [], 'page': 1}
 
 
 # Dev page stuff
@@ -926,23 +920,23 @@ def delete_note(note_id):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    orders = get_sales_orders(page=1)
+    orders = Contract.query.order_by(Contract.date.desc()).all()
 
-    total = sum(o.get('total', 0) for o in orders)
+    total = sum((o.cf_item_contract_price or 0) for o in orders)
 
     by_month = {}
     by_office = {}
     for o in orders:
-        month = o.get('date', '')[:7] if o.get('date') else 'Unknown'
-        office = o.get('location_name') or 'Unknown'
+        month = o.date[:7] if o.date else 'Unknown'
+        office = o.location_name or 'Unknown'
 
         by_month.setdefault(month, {'count': 0, 'total': 0})
         by_month[month]['count'] += 1
-        by_month[month]['total'] += o.get('total', 0)
+        by_month[month]['total'] += o.cf_item_contract_price or 0
 
         by_office.setdefault(office, {'count': 0, 'total': 0})
         by_office[office]['count'] += 1
-        by_office[office]['total'] += o.get('total', 0)
+        by_office[office]['total'] += o.cf_item_contract_price or 0
 
     by_month = dict(sorted(by_month.items(), reverse=True))
     by_office = dict(sorted(by_office.items()))

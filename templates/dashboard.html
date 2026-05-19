@@ -76,7 +76,7 @@
                 <tbody>
                     {% set offices = {} %}
                     {% for contract in contracts %}
-                        {% set office = contract.get('location_name') or 'Unknown' %}
+                        {% set office = contract.location_name or 'Unknown' %}
                         {% if office not in offices %}
                             {% set _ = offices.update({office: {'count': 0, 'total': 0}}) %}
                         {% endif %}
