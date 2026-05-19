@@ -38,6 +38,7 @@ class Customer(db.Model):
     state = db.Column(db.String(100), nullable=True)
     country = db.Column(db.String(100), nullable=True)
     zip = db.Column(db.String(50), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class Item(db.Model):
@@ -48,6 +49,7 @@ class Item(db.Model):
     origin = db.Column(db.String(200), nullable=True)
     pnl_group = db.Column(db.String(200), nullable=True)
     pnl_group_tag_option_id = db.Column(db.String(100), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class Employee(db.Model):
@@ -93,6 +95,7 @@ class ContractMeta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     books_sales_order_id = db.Column(db.String(100), unique=True, nullable=False)
     in_network = db.Column(db.Boolean, nullable=True)
+    buyer_reference = db.Column(db.String(200), nullable=True)
 
 
 class Shipment(db.Model):
@@ -102,6 +105,15 @@ class Shipment(db.Model):
     vessel_name = db.Column(db.String(200), nullable=True)
     booking_number = db.Column(db.String(200), nullable=True)
     quantity = db.Column(db.Float, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ContractNote(db.Model):
+    __tablename__ = 'contract_notes'
+    id = db.Column(db.Integer, primary_key=True)
+    books_sales_order_id = db.Column(db.String(100), nullable=False)
+    author = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 

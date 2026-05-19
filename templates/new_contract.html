@@ -42,6 +42,18 @@
                         </select>
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Seller Reference Number</label>
+                        <input type="text" class="form-control" name="seller_reference"
+                               placeholder="Enter reference number"
+                               value="{{ prefill.seller_reference if prefill else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Buyer Reference Number</label>
+                        <input type="text" class="form-control" name="buyer_reference"
+                               placeholder="Enter buyer reference number"
+                               value="">
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label">Commodity</label>
                         <select class="form-select" name="commodity">
                             <option value="">-- Select Commodity --</option>
@@ -74,7 +86,7 @@
                         <label class="form-label">Transportation</label>
                         <select class="form-select" name="transportation">
                             <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'Consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
+                            {% for option in ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
                             <option value="{{ option }}"
                                     {% if prefill and prefill['transportation'] == option %}selected{% endif %}>
                                 {{ option }}
@@ -120,7 +132,7 @@
                     <div class="col-md-4">
                         <label class="form-label">Contract Date</label>
                         <input type="date" class="form-control" name="contract_date"
-                               value="{{ prefill.contract_date if prefill else '' }}">
+                               value="{{ prefill.contract_date if prefill else today }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Commission Rate (USD)</label>
@@ -264,12 +276,6 @@
                             <option value="true">In Network</option>
                             <option value="false">Out of Network</option>
                         </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Seller Reference Number</label>
-                        <input type="text" class="form-control" name="seller_reference"
-                               placeholder="Enter reference number"
-                               value="{{ prefill.seller_reference if prefill else '' }}">
                     </div>
                 </div>
             </div>

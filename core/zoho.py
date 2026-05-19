@@ -35,8 +35,7 @@ def sync_customers():
             break
 
         for contact in contacts:
-            if contact.get('status') == 'inactive':
-                continue
+            is_active = contact.get('status') != 'inactive'
             contract_no += 1
             print(f"Syncing {contact['contact_name']}... + {contract_no}")
             # Fetch full contact detail for address
@@ -63,6 +62,7 @@ def sync_customers():
                 existing.state = billing.get('state', '')
                 existing.country = billing.get('country', '')
                 existing.zip = billing.get('zip', '')
+                existing.is_active = is_active
             else:
                 db.session.add(Customer(
                     customer_id=contact['contact_id'],
@@ -73,7 +73,8 @@ def sync_customers():
                     city=billing.get('city', ''),
                     state=billing.get('state', ''),
                     country=billing.get('country', ''),
-                    zip=billing.get('zip', '')
+                    zip=billing.get('zip', ''),
+                    is_active=is_active
                 ))
 
         db.session.commit()
@@ -134,6 +135,7 @@ def sync_items():
             existing.origin = item.get('origin', '')
             existing.pnl_group = item.get('pnl_group', '')
             existing.pnl_group_tag_option_id = item.get('pnl_group_tag_option_id', '')
+            existing.is_active = item.get('is_active', True)
         else:
             new_item = Item(
                 item_id=item['id'],
@@ -141,7 +143,8 @@ def sync_items():
                 description=item.get('description', ''),
                 origin=item.get('origin', ''),
                 pnl_group=item.get('pnl_group', ''),
-                pnl_group_tag_option_id=item.get('pnl_group_tag_option_id', '')
+                pnl_group_tag_option_id=item.get('pnl_group_tag_option_id', ''),
+                is_active=item.get('is_active', True)
             )
             db.session.add(new_item)
     db.session.commit()
@@ -168,8 +171,7 @@ def get_items():
 
     result = []
     for item in items:
-        if item.get("status") == "inactive":
-            continue
+        is_active = item.get("status") != "inactive"
 
         # Origin is a top-level custom field on the item object
         origin = item.get('cf_origin_location', '')
@@ -190,6 +192,7 @@ def get_items():
             "origin": origin,
             "pnl_group": pnl_group,
             "pnl_group_tag_option_id": pnl_group_tag_option_id,
+            "is_active": is_active,
         })
 
     return result
