@@ -2,7 +2,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item
 from flask import Flask, render_template, request, redirect, flash, send_file, session
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
-    BrokerCommission
+    BrokerCommission, ContractNote
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from core.pdf import generate_contract_pdf, generate_contract_docx
@@ -121,8 +121,8 @@ def employees_view():
 @app.route('/new_contract')
 @login_required
 def new_contract():
-    items = Item.query.all()
-    customers = Customer.query.all()
+    items = Item.query.filter_by(is_active=True).order_by(Item.item_name).all()
+    customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
     employees = Employee.query.all()
     locations = zoho.get_locations()
     prefill = None
@@ -132,8 +132,9 @@ def new_contract():
         raw = zoho.get_sales_order(duplicate_id)
         prefill = zoho.contract_to_form_data(raw)
         prefill_brokers = BrokerCommission.query.filter_by(books_sales_order_id=duplicate_id).all()
+    today = datetime.now().strftime('%Y-%m-%d')
     return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill,
-                           prefill_brokers=prefill_brokers, locations=locations)
+                           prefill_brokers=prefill_brokers, locations=locations, today=today)
 
 
 @app.route('/bulk_edit')
@@ -167,13 +168,14 @@ def contract_detail(salesorder_id):
     custom_fields = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
     contract['custom'] = custom_fields
 
-    customers = Customer.query.all()
-    customer_map = {c.customer_id: c.customer_name for c in customers}
+    all_customers = Customer.query.all()
+    customer_map = {c.customer_id: c.customer_name for c in all_customers}
+    customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
 
     buyer_id = contract['custom'].get('cf_buyer', '')
     contract['custom']['cf_buyer'] = customer_map.get(buyer_id, buyer_id)
 
-    items = Item.query.all()
+    items = Item.query.filter_by(is_active=True).order_by(Item.item_name).all()
 
     tasks = Task.query.filter_by(
         books_sales_order_id=salesorder_id
@@ -182,6 +184,7 @@ def contract_detail(salesorder_id):
     meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
     shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
     commissions = BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).all()
+    notes = ContractNote.query.filter_by(books_sales_order_id=salesorder_id).order_by(ContractNote.created_at).all()
     employees = Employee.query.all()
     employee_map = {e.employee_id: e.employee_name for e in employees}
 
@@ -194,7 +197,7 @@ def contract_detail(salesorder_id):
     return render_template('contract_detail.html',
                            contract=contract, customers=customers, items=items,
                            tasks=tasks, meta=meta, shipments=shipments,
-                           commissions=commissions, employee_map=employee_map,
+                           commissions=commissions, notes=notes, employee_map=employee_map,
                            salesperson_employee=salesperson_employee)
 
 
@@ -268,7 +271,8 @@ def submit_contract_route():
         in_network_val = request.form.get('in_network')
         meta = ContractMeta(
             books_sales_order_id=salesorder_id,
-            in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None
+            in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None,
+            buyer_reference=request.form.get('buyer_reference', '').strip() or None
         )
         db.session.add(meta)
 
@@ -376,6 +380,7 @@ def update_contract(salesorder_id):
             db.session.add(meta)
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
+        meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')
@@ -856,6 +861,36 @@ def contract_docx(salesorder_id):
         as_attachment=True,
         download_name=f"{contract.get('salesorder_number', 'contract')}.docx"
     )
+
+
+@app.route('/contracts/<salesorder_id>/notes/add', methods=['POST'])
+@login_required
+def add_note(salesorder_id):
+    body = request.form.get('body', '').strip()
+    if not body:
+        flash('Note cannot be empty.', 'warning')
+        return redirect(f'/contracts/{salesorder_id}')
+    note = ContractNote(
+        books_sales_order_id=salesorder_id,
+        author=current_user.display_name or current_user.email,
+        body=body
+    )
+    db.session.add(note)
+    db.session.commit()
+    return redirect(f'/contracts/{salesorder_id}#notes')
+
+
+@app.route('/contracts/notes/<int:note_id>/delete', methods=['POST'])
+@login_required
+def delete_note(note_id):
+    note = ContractNote.query.get(note_id)
+    if not note:
+        return {'ok': False}, 404
+    salesorder_id = note.books_sales_order_id
+    db.session.delete(note)
+    db.session.commit()
+    return redirect(f'/contracts/{salesorder_id}#notes')
+
 
 
 # Dashboard

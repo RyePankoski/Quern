@@ -16,6 +16,7 @@
                     <th>Description</th>
                     <th>Origin</th>
                     <th>PNL Group</th>
+                    <th>Status</th>
                 </tr>
             </thead>
             <tbody id="items-tbody">
@@ -30,6 +31,7 @@
                     <td>{{ item.description or '—' }}</td>
                     <td>{{ item.origin or '—' }}</td>
                     <td>{{ item.pnl_group or '—' }}</td>
+                    <td>{% if item.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>

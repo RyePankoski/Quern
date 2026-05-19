@@ -27,7 +27,7 @@
                     data-country="{{ (customer.country or '') | lower }}"
                     data-address="{{ (customer.address or '') | lower }}">
                     <td>{{ loop.index }}</td>
-                    <td>{{ customer.customer_name }}</td>
+                    <td>{{ customer.customer_name }}{% if not customer.is_active %} <span class="badge bg-secondary ms-1">Inactive</span>{% endif %}</td>
                     <td>{{ customer.city or '—' }}</td>
                     <td>{{ customer.state or '—' }}</td>
                     <td>{{ customer.country or '—' }}</td>
