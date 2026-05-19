@@ -51,18 +51,18 @@
             </thead>
             <tbody id="contracts-tbody">
             {% for contract in contracts %}
-            <tr onclick="window.location='/contracts/{{ contract['salesorder_id'] }}'" style="cursor: pointer;"
-                data-number="{{ contract['salesorder_number'] | lower }}"
-                data-buyer="{{ contract.get('cf_buyer', '') | lower }}"
-                data-seller="{{ contract['customer_name'] | lower }}"
-                data-status="{{ contract['status'] | lower }}"
-                data-date="{{ contract['date'] }}">
+            <tr onclick="window.location='/contracts/{{ contract.salesorder_id }}'" style="cursor: pointer;"
+                data-number="{{ contract.salesorder_number | lower }}"
+                data-buyer="{{ (contract.cf_buyer or '') | lower }}"
+                data-seller="{{ contract.customer_name | lower }}"
+                data-status="{{ contract.status | lower }}"
+                data-date="{{ contract.date }}">
                 <td>{{ loop.index }}</td>
-                <td>{{ contract['salesorder_number'] }}</td>
-                <td>{{ contract.get('cf_buyer', '') }}</td>
-                <td>{{ contract['customer_name'] }}</td>
-                <td>{{ contract['status'] }}</td>
-                <td>{{ contract['date'] }}</td>
+                <td>{{ contract.salesorder_number }}</td>
+                <td>{{ contract.cf_buyer or '' }}</td>
+                <td>{{ contract.customer_name }}</td>
+                <td>{{ contract.status }}</td>
+                <td>{{ contract.date }}</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -97,57 +97,8 @@
         });
     }
 
-    const loadMoreBtn = document.getElementById('load-more');
-    if (loadMoreBtn) {
-        loadMoreBtn.addEventListener('click', () => {
-            const page = loadMoreBtn.dataset.page;
-            loadMoreBtn.textContent = 'Loading...';
-            loadMoreBtn.disabled = true;
-
-            fetch(`/api/contracts?page=${page}`)
-                .then(res => res.json())
-                .then(data => {
-                    const tbody = document.getElementById('contracts-tbody');
-                    let rowCount = tbody.querySelectorAll('tr').length;
-
-                    data.contracts.forEach(contract => {
-                        rowCount++;
-                        const tr = document.createElement('tr');
-                        tr.style.cursor = 'pointer';
-                        tr.onclick = () => window.location = `/contracts/${contract.salesorder_id}`;
-                        tr.dataset.number = (contract.salesorder_number || '').toLowerCase();
-                        tr.dataset.buyer = (contract.cf_buyer || '').toLowerCase();
-                        tr.dataset.seller = (contract.customer_name || '').toLowerCase();
-                        tr.dataset.status = (contract.status || '').toLowerCase();
-                        tr.dataset.date = contract.date || '';
-                        tr.innerHTML = `
-                            <td>${rowCount}</td>
-                            <td>${contract.salesorder_number || ''}</td>
-                            <td>${contract.cf_buyer || ''}</td>
-                            <td>${contract.customer_name || ''}</td>
-                            <td>${contract.status || ''}</td>
-                            <td>${contract.date || ''}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-
-                    if (data.contracts.length < 200) {
-                        loadMoreBtn.parentElement.remove();
-                    } else {
-                        loadMoreBtn.dataset.page = parseInt(page) + 1;
-                        loadMoreBtn.textContent = 'Load More';
-                        loadMoreBtn.disabled = false;
-                    }
-                });
-        });
-    }
 </script>
 
-{% if contracts | length == 200 %}
-<div class="text-center mt-3 mb-5">
-    <button id="load-more" class="btn btn-outline-secondary px-4" data-page="{{ page + 1 }}">Load More</button>
-</div>
-{% endif %}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
