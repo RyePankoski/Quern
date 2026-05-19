@@ -1,7 +1,7 @@
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item
+from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item, sync_customers_page, sync_contracts_page
 from flask import Flask, render_template, request, redirect, flash, send_file, session
-from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, ContractMeta, Shipment, \
+from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, Contract, Shipment, \
     BrokerCommission, ContractNote
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
@@ -142,9 +142,12 @@ def new_contract():
 def bulk_edit():
     orders = get_sales_orders()
     customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
+    meta_map = {m.salesorder_id: m for m in Contract.query.all()}
     for contract in orders:
         buyer_id = contract.get('cf_buyer', '')
         contract['cf_buyer'] = customers.get(buyer_id, buyer_id)
+        meta = meta_map.get(contract.get('salesorder_id', ''))
+        contract['buyer_reference'] = meta.buyer_reference if meta and meta.buyer_reference else ''
     return render_template('bulk_edit.html', contracts=orders)
 
 
@@ -181,7 +184,7 @@ def contract_detail(salesorder_id):
         books_sales_order_id=salesorder_id
     ).join(TaskTemplate).order_by(TaskTemplate.order).all()
 
-    meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+    meta = Contract.query.get(salesorder_id)
     shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
     commissions = BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).all()
     notes = ContractNote.query.filter_by(books_sales_order_id=salesorder_id).order_by(ContractNote.created_at).all()
@@ -269,8 +272,8 @@ def submit_contract_route():
         generate_tasks(salesorder_id, country=office)
 
         in_network_val = request.form.get('in_network')
-        meta = ContractMeta(
-            books_sales_order_id=salesorder_id,
+        meta = Contract(
+            salesorder_id=salesorder_id,
             in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None,
             buyer_reference=request.form.get('buyer_reference', '').strip() or None
         )
@@ -322,9 +325,19 @@ def bulk_edit_save(salesorder_id):
     value = data.get('value')
 
     allowed_fields = {'quantity', 'seller_reference', 'shipping_date_end',
-                      'uom', 'transportation', 'co_broker_name'}
+                      'uom', 'transportation', 'co_broker_name', 'buyer_reference'}
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
+
+    # buyer_reference is local-only — save to Contract and return early
+    if field == 'buyer_reference':
+        meta = Contract.query.get(salesorder_id)
+        if not meta:
+            meta = Contract(salesorder_id=salesorder_id)
+            db.session.add(meta)
+        meta.buyer_reference = value.strip() or None
+        db.session.commit()
+        return {'ok': True}
 
     contract = zoho.get_sales_order(salesorder_id)
     form_data = zoho.contract_to_form_data(contract)
@@ -374,9 +387,9 @@ def update_contract(salesorder_id):
     if result.get('code', 0) == 0:
         check_task_reactivity(salesorder_id, form_data)
 
-        meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+        meta = Contract.query.get(salesorder_id)
         if not meta:
-            meta = ContractMeta(books_sales_order_id=salesorder_id)
+            meta = Contract(salesorder_id=salesorder_id)
             db.session.add(meta)
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
@@ -711,6 +724,21 @@ def init_employees():
     return {'result': 'Employees synced.'}
 
 
+@app.route('/init/customers/page')
+def init_customers_page():
+    page = request.args.get('page', 1, type=int)
+    result = sync_customers_page(page)
+    return {'has_more': result['has_more'], 'count': result['count'], 'page': page}
+
+
+@app.route('/init/contracts/page')
+def init_contracts_page():
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', None, type=int)
+    result = sync_contracts_page(page, limit=limit)
+    return {'has_more': result['has_more'], 'count': result['count'], 'page': page}
+
+
 @app.route('/dev/action/<action>', methods=['POST'])
 @login_required
 def dev_action(action):
@@ -778,9 +806,9 @@ def debug_locations():
 @app.route('/contracts/<salesorder_id>/meta', methods=['POST'])
 @login_required
 def save_contract_meta(salesorder_id):
-    meta = ContractMeta.query.filter_by(books_sales_order_id=salesorder_id).first()
+    meta = Contract.query.get(salesorder_id)
     if not meta:
-        meta = ContractMeta(books_sales_order_id=salesorder_id)
+        meta = Contract(salesorder_id=salesorder_id)
         db.session.add(meta)
 
     in_network_val = request.form.get('in_network')

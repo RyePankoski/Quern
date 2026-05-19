@@ -90,12 +90,58 @@ class Task(db.Model):
     employee = db.relationship('Employee', backref='tasks')
 
 
-class ContractMeta(db.Model):
-    __tablename__ = 'contract_meta'
-    id = db.Column(db.Integer, primary_key=True)
-    books_sales_order_id = db.Column(db.String(100), unique=True, nullable=False)
-    in_network = db.Column(db.Boolean, nullable=True)
-    buyer_reference = db.Column(db.String(200), nullable=True)
+class Contract(db.Model):
+    __tablename__ = 'contracts'
+
+    # Zoho identifiers
+    salesorder_id            = db.Column(db.String(100), primary_key=True)
+    salesorder_number        = db.Column(db.String(100))
+    status                   = db.Column(db.String(50))
+    last_modified_time       = db.Column(db.String(50))
+
+    # Dates
+    date                     = db.Column(db.String(20))
+    shipment_date            = db.Column(db.String(20))
+    cf_shipment_end_date     = db.Column(db.String(20))
+
+    # Seller
+    customer_id              = db.Column(db.String(100))
+    customer_name            = db.Column(db.String(200))
+
+    # Buyer
+    cf_buyer                 = db.Column(db.String(200))
+    cf_buyer_id              = db.Column(db.String(100))
+
+    # Line item
+    item_id                  = db.Column(db.String(100))
+    item_name                = db.Column(db.String(200))
+    quantity                 = db.Column(db.Float)
+    rate                     = db.Column(db.Float)
+
+    # Custom fields
+    cf_item_contract_price   = db.Column(db.Float)
+    cf_trnspname             = db.Column(db.String(100))
+    cf_uom                   = db.Column(db.String(100))
+    cf_customer_ref          = db.Column(db.String(200))
+    cf_co_broker             = db.Column(db.String(200))
+    cf_co_brokerage_rate     = db.Column(db.Float)
+    cf_split_broker          = db.Column(db.String(200))
+    cf_split_percentage      = db.Column(db.Float)
+    cf_vessel_name           = db.Column(db.String(200))
+    cf_origin_location       = db.Column(db.String(200))
+
+    # Zoho top-level
+    salesperson_name         = db.Column(db.String(200))
+    salesperson_id           = db.Column(db.String(100))
+    location_id              = db.Column(db.String(100))
+    location_name            = db.Column(db.String(200))
+    reference_number         = db.Column(db.String(500))
+    notes                    = db.Column(db.Text)
+    terms                    = db.Column(db.Text)
+
+    # Quern-local
+    in_network               = db.Column(db.Boolean)
+    buyer_reference          = db.Column(db.String(200))
 
 
 class Shipment(db.Model):
