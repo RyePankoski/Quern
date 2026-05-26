@@ -142,6 +142,8 @@ class Contract(db.Model):
     # Quern-local
     in_network               = db.Column(db.Boolean)
     buyer_reference          = db.Column(db.String(200))
+    packing                  = db.Column(db.String(20))
+    packing                  = db.Column(db.String(20))
 
 
 class Shipment(db.Model):

@@ -113,10 +113,21 @@ def new_contract():
     prefill = None
     prefill_brokers = []
     duplicate_id = request.args.get('duplicate')
+
     if duplicate_id:
-        raw = zoho.get_sales_order(duplicate_id)
-        prefill = zoho.contract_to_form_data(raw)
-        prefill_brokers = BrokerCommission.query.filter_by(books_sales_order_id=duplicate_id).all()
+        source = Contract.query.get(duplicate_id)
+        if source:
+            prefill = zoho.contract_to_form_data_local(source)
+            prefill_brokers = BrokerCommission.query.filter_by(books_sales_order_id=duplicate_id).all()
+            if not prefill_brokers and source.salesperson_id:
+                fallback_emp = Employee.query.filter_by(salesperson_id=source.salesperson_id).first()
+                if fallback_emp:
+                    prefill_brokers = [type('obj', (object,), {
+                        'employee_id': fallback_emp.employee_id,
+                        'percentage': 100.0
+                    })()]
+
+
     today = datetime.now().strftime('%Y-%m-%d')
     return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill,
                            prefill_brokers=prefill_brokers, locations=locations, today=today)
@@ -180,7 +191,7 @@ def contract_detail(salesorder_id):
         },
     }
 
-    customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
+    customers = Customer.query.order_by(Customer.customer_name).all()
     items = Item.query.order_by(Item.item_name).all()
 
     tasks = Task.query.filter_by(
@@ -252,7 +263,6 @@ def submit_contract_route():
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
     # First broker → salesperson_employee_id, second → second_broker_employee_id
-    # The second broker goes to cf_split_broker in Books (resolved in zoho.submit_contract)
     broker_employees = request.form.getlist('broker_employee[]')
     broker_percentages = request.form.getlist('broker_percentage[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
@@ -267,16 +277,16 @@ def submit_contract_route():
     if result.get('code', 0) == 0:
         salesorder_id = result['salesorder']['salesorder_id']
         salesorder_number = result['salesorder']['salesorder_number']
+
+        zoho.upsert_contract_from_zoho(result['salesorder'])
+
         office = request.form.get('location_name', 'Head Office')
         generate_tasks(salesorder_id, country=office)
 
+        meta = Contract.query.get(salesorder_id)
         in_network_val = request.form.get('in_network')
-        meta = Contract(
-            salesorder_id=salesorder_id,
-            in_network=True if in_network_val == 'true' else False if in_network_val == 'false' else None,
-            buyer_reference=request.form.get('buyer_reference', '').strip() or None
-        )
-        db.session.add(meta)
+        meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
+        meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
 
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
@@ -378,7 +388,6 @@ def update_contract(salesorder_id):
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
     form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
-    # Concatenate booking numbers for customer_notes
     booking_numbers = request.form.getlist('booking_number[]')
     form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
 
@@ -386,10 +395,9 @@ def update_contract(salesorder_id):
     if result.get('code', 0) == 0:
         check_task_reactivity(salesorder_id, form_data)
 
+        zoho.upsert_contract_from_zoho(result['salesorder'])
+
         meta = Contract.query.get(salesorder_id)
-        if not meta:
-            meta = Contract(salesorder_id=salesorder_id)
-            db.session.add(meta)
         in_network_val = request.form.get('in_network')
         meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
@@ -635,9 +643,15 @@ def confirm_task(task_id):
     task = Task.query.get(task_id)
     if not task:
         return {'ok': False, 'error': 'Task not found'}, 404
-    task.status = 'complete'
-    task.completed_value = data.get('completed_value', '')
-    task.completed_at = datetime.utcnow()
+    value = data.get('completed_value', '')
+    if value == 'yes':
+        task.status = 'complete'
+        task.completed_value = value
+        task.completed_at = datetime.utcnow()
+    else:
+        task.status = 'pending'
+        task.completed_value = None
+        task.completed_at = None
     db.session.commit()
     return {'ok': True}
 

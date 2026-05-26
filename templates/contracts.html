@@ -40,14 +40,16 @@
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
-            <tr>
-                <th>#</th>
-                <th>Contract Number</th>
-                <th>Buyer</th>
-                <th>Seller</th>
-                <th>Status</th>
-                <th>Date</th>
-            </tr>
+                <tr>
+                    <th>#</th>
+                    <th>Contract Number</th>
+                    <th>Buyer</th>
+                    <th>Buyer Ref #</th>
+                    <th>Seller</th>
+                    <th>Seller Ref #</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
             </thead>
             <tbody id="contracts-tbody">
             {% for contract in contracts %}
@@ -60,7 +62,9 @@
                 <td>{{ loop.index }}</td>
                 <td>{{ contract.salesorder_number }}</td>
                 <td>{{ contract.cf_buyer or '' }}</td>
+                <td>{{ contract.buyer_reference or '' }}</td>
                 <td>{{ contract.customer_name }}</td>
+                <td>{{ contract.cf_customer_ref or '' }}</td>
                 <td>{{ contract.status }}</td>
                 <td>{{ contract.date }}</td>
             </tr>
@@ -96,38 +100,36 @@
             row.style.display = (matchNumber && matchBuyer && matchSeller && matchStatus && matchDateFrom && matchDateTo) ? '' : 'none';
         });
     }
-
 </script>
-
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-function exportToExcel() {
-    const rows = [['Contract #', 'Buyer', 'Seller', 'Status', 'Date']];
+    function exportToExcel() {
+        const rows = [['Contract #', 'Buyer', 'Buyer Ref #', 'Seller', 'Seller Ref #', 'Status', 'Date']];
 
-    document.querySelectorAll('#contracts-tbody tr').forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 6) return;
-        rows.push([
-            cells[1].textContent.trim(),
-            cells[2].textContent.trim(),
-            cells[3].textContent.trim(),
-            cells[4].textContent.trim(),
-            cells[5].textContent.trim(),
-        ]);
-    });
+        document.querySelectorAll('#contracts-tbody tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 8) return;
+            rows.push([
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+            ]);
+        });
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [20, 30, 20, 30, 20, 15, 15].map(w => ({ wch: w }));
 
-    // Auto column widths
-    ws['!cols'] = [20, 30, 30, 15, 15].map(w => ({ wch: w }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
-
-    const date = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `contracts_${date}.xlsx`);
-}
+        const date = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `contracts_${date}.xlsx`);
+    }
 </script>
 
 {% endblock %}

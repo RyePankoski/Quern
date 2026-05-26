@@ -81,7 +81,6 @@ def sync_customers():
         page += 1
 
 
-
 def sync_customers_page(page):
     """Sync one page of customers. Returns has_more boolean."""
     token = get_access_token()
@@ -176,38 +175,44 @@ def sync_contracts_page(page, limit=None):
         except (ValueError, TypeError):
             split_pct = None
 
+        # Resolve buyer name to local customer ID
+        buyer_name = custom.get('cf_buyer', '')
+        buyer_customer = Customer.query.filter_by(customer_name=buyer_name).first() if buyer_name else None
+        buyer_customer_id = buyer_customer.customer_id if buyer_customer else None
+
         existing = Contract.query.get(salesorder_id)
         if existing:
-            existing.salesorder_number    = detail.get('salesorder_number', '')
-            existing.status               = detail.get('status', '')
-            existing.last_modified_time   = detail.get('last_modified_time', '')
-            existing.date                 = detail.get('date', '')
-            existing.shipment_date        = detail.get('shipment_date', '')
-            existing.cf_shipment_end_date = custom.get('cf_shipment_end_date', '')
-            existing.customer_id          = detail.get('customer_id', '')
-            existing.customer_name        = detail.get('customer_name', '')
-            existing.cf_buyer             = custom.get('cf_buyer', '')
-            existing.item_id              = first_item.get('item_id', '')
-            existing.item_name            = first_item.get('name', '')
-            existing.quantity             = first_item.get('quantity')
-            existing.rate                 = first_item.get('rate')
+            existing.salesorder_number      = detail.get('salesorder_number', '')
+            existing.status                 = detail.get('status', '')
+            existing.last_modified_time     = detail.get('last_modified_time', '')
+            existing.date                   = detail.get('date', '')
+            existing.shipment_date          = detail.get('shipment_date', '')
+            existing.cf_shipment_end_date   = custom.get('cf_shipment_end_date', '')
+            existing.customer_id            = detail.get('customer_id', '')
+            existing.customer_name          = detail.get('customer_name', '')
+            existing.cf_buyer               = buyer_name
+            existing.cf_buyer_id            = buyer_customer_id
+            existing.item_id                = first_item.get('item_id', '')
+            existing.item_name              = first_item.get('name', '')
+            existing.quantity               = first_item.get('quantity')
+            existing.rate                   = first_item.get('rate')
             existing.cf_item_contract_price = price
-            existing.cf_trnspname         = custom.get('cf_trnspname', '')
-            existing.cf_uom               = custom.get('cf_uom', '')
-            existing.cf_customer_ref      = custom.get('cf_customer_ref', '')
-            existing.cf_co_broker         = custom.get('cf_co_broker', '')
-            existing.cf_co_brokerage_rate = co_rate
-            existing.cf_split_broker      = custom.get('cf_split_broker', '')
-            existing.cf_split_percentage  = split_pct
-            existing.cf_vessel_name       = custom.get('cf_vessel_name', '')
-            existing.cf_origin_location   = custom.get('cf_origin_location', '')
-            existing.salesperson_name     = detail.get('salesperson_name', '')
-            existing.salesperson_id       = detail.get('salesperson_id', '')
-            existing.location_id          = detail.get('location_id', '')
-            existing.location_name        = detail.get('location_name', '')
-            existing.reference_number     = detail.get('reference_number', '')
-            existing.notes                = detail.get('notes', '')
-            existing.terms                = detail.get('terms', '')
+            existing.cf_trnspname           = custom.get('cf_trnspname', '')
+            existing.cf_uom                 = custom.get('cf_uom', '')
+            existing.cf_customer_ref        = custom.get('cf_customer_ref', '')
+            existing.cf_co_broker           = custom.get('cf_co_broker', '')
+            existing.cf_co_brokerage_rate   = co_rate
+            existing.cf_split_broker        = custom.get('cf_split_broker', '')
+            existing.cf_split_percentage    = split_pct
+            existing.cf_vessel_name         = custom.get('cf_vessel_name', '')
+            existing.cf_origin_location     = custom.get('cf_origin_location', '')
+            existing.salesperson_name       = detail.get('salesperson_name', '')
+            existing.salesperson_id         = detail.get('salesperson_id', '')
+            existing.location_id            = detail.get('location_id', '')
+            existing.location_name          = detail.get('location_name', '')
+            existing.reference_number       = detail.get('reference_number', '')
+            existing.notes                  = detail.get('notes', '')
+            existing.terms                  = detail.get('terms', '')
         else:
             db.session.add(Contract(
                 salesorder_id          = salesorder_id,
@@ -219,7 +224,8 @@ def sync_contracts_page(page, limit=None):
                 cf_shipment_end_date   = custom.get('cf_shipment_end_date', ''),
                 customer_id            = detail.get('customer_id', ''),
                 customer_name          = detail.get('customer_name', ''),
-                cf_buyer               = custom.get('cf_buyer', ''),
+                cf_buyer               = buyer_name,
+                cf_buyer_id            = buyer_customer_id,
                 item_id                = first_item.get('item_id', ''),
                 item_name              = first_item.get('name', ''),
                 quantity               = first_item.get('quantity'),
@@ -546,13 +552,13 @@ def submit_contract(form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
-            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
+            {"api_name": "cf_uom", "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
         ] if cf['value']
     ]
     if second_broker_name:
@@ -618,13 +624,13 @@ def update_contract(salesorder_id, form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
-            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
+            {"api_name": "cf_uom", "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
         ] if cf['value']
     ]
     if second_broker_name:
@@ -664,6 +670,62 @@ def update_contract(salesorder_id, form_data):
     return response.json()
 
 
+def upsert_contract_from_zoho(detail):
+    """Upsert all Zoho fields into the local Contract table from a salesorder detail dict."""
+    from core.models import db, Contract
+    salesorder_id = detail.get('salesorder_id', '')
+    if not salesorder_id:
+        return
+
+    custom = {f['api_name']: f['value'] for f in detail.get('custom_fields', [])}
+    line_items = detail.get('line_items', [])
+    first_item = line_items[0] if line_items else {}
+
+    def safe_float(val):
+        try:
+            return float(val) if val not in (None, '', 'None') else None
+        except (ValueError, TypeError):
+            return None
+
+    existing = Contract.query.get(salesorder_id)
+    if not existing:
+        existing = Contract(salesorder_id=salesorder_id)
+        db.session.add(existing)
+
+    existing.salesorder_number = detail.get('salesorder_number', '')
+    existing.status = detail.get('status', '')
+    existing.last_modified_time = detail.get('last_modified_time', '')
+    existing.date = detail.get('date', '')
+    existing.shipment_date = detail.get('shipment_date', '')
+    existing.cf_shipment_end_date = custom.get('cf_shipment_end_date', '')
+    existing.customer_id = detail.get('customer_id', '')
+    existing.customer_name = detail.get('customer_name', '')
+    existing.cf_buyer = custom.get('cf_buyer', '')
+    existing.item_id = first_item.get('item_id', '')
+    existing.item_name = first_item.get('name', '')
+    existing.quantity = first_item.get('quantity')
+    existing.rate = first_item.get('rate')
+    existing.cf_item_contract_price = safe_float(custom.get('cf_item_contract_price'))
+    existing.cf_trnspname = custom.get('cf_trnspname', '')
+    existing.cf_uom = custom.get('cf_uom', '')
+    existing.cf_customer_ref = custom.get('cf_customer_ref', '')
+    existing.cf_co_broker = custom.get('cf_co_broker', '')
+    existing.cf_co_brokerage_rate = safe_float(custom.get('cf_co_brokerage_rate'))
+    existing.cf_split_broker = custom.get('cf_split_broker', '')
+    existing.cf_split_percentage = safe_float(custom.get('cf_split_percentage'))
+    existing.cf_vessel_name = custom.get('cf_vessel_name', '')
+    existing.cf_origin_location = custom.get('cf_origin_location', '')
+    existing.salesperson_name = detail.get('salesperson_name', '')
+    existing.salesperson_id = detail.get('salesperson_id', '')
+    existing.location_id = detail.get('location_id', '')
+    existing.location_name = detail.get('location_name', '')
+    existing.reference_number = detail.get('reference_number', '')
+    existing.notes = detail.get('notes', '')
+    existing.terms = detail.get('terms', '')
+
+    db.session.commit()
+
+
 def contract_to_form_data(contract):
     """Convert a raw Books sales order dict to a flat form_data dict."""
     custom = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}
@@ -696,6 +758,30 @@ def contract_to_form_data(contract):
         # salesperson_employee_id and second_broker_employee_id are not stored here
         # because they come from the broker subform on submit/update, not from Books.
         # booking_numbers_concat is assembled at submit/update time from the local Shipment table.
+    }
+
+
+def contract_to_form_data_local(contract):
+    """Convert a local Contract model instance to a flat form_data dict for prefill."""
+    return {
+        'seller': contract.customer_id or '',
+        'buyer': contract.cf_buyer_id or '',
+        'contract_date': '',
+        'shipping_date': contract.shipment_date or '',
+        'shipping_date_end': contract.cf_shipment_end_date or '',
+        'delivery_notes': contract.notes or '',
+        'terms': contract.terms or '',
+        'commodity': contract.item_id or '',
+        'commission_rate': contract.rate or '',
+        'quantity': contract.quantity or '',
+        'commodity_rate': contract.cf_item_contract_price or '',
+        'transportation': contract.cf_trnspname or '',
+        'uom': contract.cf_uom or '',
+        'seller_reference': contract.cf_customer_ref or '',
+        'co_broker_name': contract.cf_co_broker or '',
+        'co_brokerage_rate': contract.cf_co_brokerage_rate or '',
+        'location_id': contract.location_id or '',
+        'location_name': contract.location_name or '',
     }
 
 
