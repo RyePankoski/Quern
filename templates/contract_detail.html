@@ -118,6 +118,48 @@
             </div>
         </div>
 
+        <!-- Commodity Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Commodity Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Contract Date</label>
+                        <input type="date" class="form-control" name="contract_date"
+                               value="{{ contract.get('date', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Commission Rate (USD)</label>
+                        <input type="number" step="0.000000001" class="form-control" name="commission_rate"
+                               value="{{ contract['line_items'][0]['rate'] if contract.get('line_items') else '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" step="0.01" class="form-control" name="quantity"
+                               value="{{ contract['line_items'][0]['quantity'] if contract.get('line_items') else '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">UOM</label>
+                        <select class="form-select" name="uom">
+                            <option value="">-- Select --</option>
+                            {% for option in ['metric tons', 'bushels', 'short tons', 'LBS', 'cars', 'consulting', 'other'] %}
+                            <option value="{{ option }}"
+                                    {% if contract['custom'].get('cf_uom') == option %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Contract Terms</label>
+                        <textarea class="form-control" rows="4" name="terms">{{ contract.get('terms', '') }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Transportation Details -->
         <div class="card mb-4">
             <div class="card-header">
@@ -170,52 +212,10 @@
             </div>
         </div>
 
-        <!-- Commodity Details -->
+        <!-- Broker Team -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Commodity Details</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Contract Date</label>
-                        <input type="date" class="form-control" name="contract_date"
-                               value="{{ contract.get('date', '') }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Commission Rate (USD)</label>
-                        <input type="number" step="0.000000001" class="form-control" name="commission_rate"
-                               value="{{ contract['line_items'][0]['rate'] if contract.get('line_items') else '' }}">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Quantity</label>
-                        <input type="number" step="0.01" class="form-control" name="quantity"
-                               value="{{ contract['line_items'][0]['quantity'] if contract.get('line_items') else '' }}">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">UOM</label>
-                        <select class="form-select" name="uom">
-                            <option value="">-- Select --</option>
-                            {% for option in ['metric tons', 'bushels', 'short tons', 'LBS', 'cars', 'consulting', 'other'] %}
-                            <option value="{{ option }}"
-                                    {% if contract['custom'].get('cf_uom') == option %}selected{% endif %}>
-                                {{ option }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Contract Terms</label>
-                        <textarea class="form-control" rows="4" name="terms">{{ contract.get('terms', '') }}</textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Co-Broker -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Co-Broker</h5>
+                <h5 class="mb-0">Broker Team</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3 mb-4">
@@ -348,10 +348,10 @@
             </div>
         </div>
 
-        <!-- Contract Status -->
+        <!-- Shipments and Status -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Contract Status</h5>
+                <h5 class="mb-0">Shipments and Status</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3">

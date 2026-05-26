@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Employees</h2>
-    <p class="text-muted" style="font-size:0.85rem;">Click an office cell to edit it.</p>
+    <p class="text-muted" style="font-size:0.85rem;">Click an office cell to edit it. Click the Active toggle to mark an employee inactive.</p>
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
             <thead class="table-dark">
@@ -12,11 +12,12 @@
                     <th>Position</th>
                     <th>Office</th>
                     <th class="d-none d-md-table-cell">Email</th>
+                    <th style="width:100px;">Active</th>
                 </tr>
             </thead>
             <tbody>
                 {% for employee in employees %}
-                <tr>
+                <tr {% if not employee.is_active %}style="opacity:0.5;"{% endif %}>
                     <td>{{ loop.index }}</td>
                     <td>{{ employee.employee_name }}</td>
                     <td>{{ employee.position or '—' }}</td>
@@ -27,6 +28,18 @@
                         <span class="office-display">{{ employee.office or '—' }}</span>
                     </td>
                     <td class="d-none d-md-table-cell">{{ employee.email or '—' }}</td>
+                    <td class="text-center active-cell"
+                        data-id="{{ employee.employee_id }}"
+                        data-active="{{ 'true' if employee.is_active else 'false' }}"
+                        style="cursor:pointer;">
+                        <span class="active-display">
+                            {% if employee.is_active %}
+                            <span style="color:#4f7a1a; font-weight:500;">Active</span>
+                            {% else %}
+                            <span style="color:#888780;">Inactive</span>
+                            {% endif %}
+                        </span>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -37,7 +50,7 @@
 <script>
 document.querySelectorAll('.office-cell').forEach(cell => {
     cell.addEventListener('click', function () {
-        if (this.querySelector('input')) return; // already editing
+        if (this.querySelector('input')) return;
 
         const current = this.dataset.value;
         const display = this.querySelector('.office-display');
@@ -69,7 +82,6 @@ document.querySelectorAll('.office-cell').forEach(cell => {
                     span.className = 'office-display';
                     span.textContent = newVal || '—';
                     input.replaceWith(span);
-                    // Brief green flash
                     cell.style.background = '#1a2e0a';
                     setTimeout(() => cell.style.background = '', 800);
                 } else {
@@ -99,6 +111,37 @@ document.querySelectorAll('.office-cell').forEach(cell => {
                 input.replaceWith(span);
             }
         });
+    });
+});
+
+document.querySelectorAll('.active-cell').forEach(cell => {
+    cell.addEventListener('click', function () {
+        const empId = this.dataset.id;
+        const currentActive = this.dataset.active === 'true';
+        const newActive = !currentActive;
+
+        fetch(`/employees/${empId}/active`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: newActive })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                this.dataset.active = newActive ? 'true' : 'false';
+                const display = this.querySelector('.active-display');
+                display.innerHTML = newActive
+                    ? '<span style="color:#4f7a1a; font-weight:500;">Active</span>'
+                    : '<span style="color:#888780;">Inactive</span>';
+                const row = this.closest('tr');
+                row.style.opacity = newActive ? '1' : '0.5';
+                this.style.background = '#1a2e0a';
+                setTimeout(() => this.style.background = '', 800);
+            } else {
+                alert('Save failed: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(() => alert('Save failed.'));
     });
 });
 </script>

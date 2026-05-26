@@ -96,6 +96,18 @@ def update_employee_office(employee_id):
     return {'ok': True}
 
 
+@app.route('/employees/<employee_id>/active', methods=['POST'])
+@login_required
+def update_employee_active(employee_id):
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return {'ok': False, 'error': 'Employee not found'}, 404
+    data = request.get_json()
+    employee.is_active = bool(data.get('is_active', True))
+    db.session.commit()
+    return {'ok': True}
+
+
 @app.route('/employees')
 @login_required
 def employees_view():
@@ -108,7 +120,7 @@ def employees_view():
 def new_contract():
     items = Item.query.filter_by(is_active=True).order_by(Item.item_name).all()
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
-    employees = Employee.query.all()
+    employees = Employee.query.filter_by(is_active=True).order_by(Employee.employee_name).all()
     locations = zoho.get_locations()
     prefill = None
     prefill_brokers = []

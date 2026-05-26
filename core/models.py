@@ -61,6 +61,7 @@ class Employee(db.Model):
     office = db.Column(db.String(100))
     position = db.Column(db.String(100))
     salesperson_id = db.Column(db.String(50))
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class TaskTemplate(db.Model):
