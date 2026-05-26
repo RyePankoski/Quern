@@ -266,10 +266,6 @@ def sync_employees():
     employees = response.json().get('module_records', [])
 
     for e in employees:
-        # Try both the formatted and raw key names for the office field —
-        # Zoho custom module responses use _formatted suffix for lookup/dropdown
-        # display values, but the actual key can vary. Log what we receive so
-        # mismatches can be caught.
         office_val = e.get('cf_office_formatted') or e.get('cf_office') or ''
         if not office_val:
             keys = [k for k in e.keys() if 'office' in k.lower()]
@@ -347,11 +343,7 @@ def get_items():
     result = []
     for item in items:
         is_active = item.get("status") != "inactive"
-
-        # Origin is a top-level custom field on the item object
         origin = item.get('cf_origin_location', '')
-
-        # P&L Group comes from the tags array
         pnl_group = ''
         pnl_group_tag_option_id = ''
         for tag in item.get('tags', []):
@@ -402,7 +394,7 @@ def get_access_token():
             if time.time() < cache.get("expires_at", 0):
                 return cache["access_token"]
     except (json.JSONDecodeError, KeyError, IOError):
-        pass  # Cache is corrupt or unreadable, fall through to refresh
+        pass
 
     response = requests.post(
         "https://accounts.zoho.com/oauth/v2/token",
@@ -430,8 +422,8 @@ def get_access_token():
     try:
         with open(_TOKEN_FILE, "w") as f:
             json.dump(cache, f)
-    except IOError as e:
-        pass  # Non-fatal — token still works this session, just won't be cached
+    except IOError:
+        pass
 
     return data["access_token"]
 
@@ -447,11 +439,6 @@ def get_sales_orders(page=1):
 
 
 def get_sales_orders_for_item(item_id):
-    """
-    Fetch sales orders that contain a specific item.
-    Zoho Books supports filtering by item_id on the salesorders list endpoint.
-    Falls back to an empty list if the API doesn't support it.
-    """
     coin = get_access_token()
     orders = []
     page = 1
@@ -531,10 +518,8 @@ def get_locations():
 def submit_contract(form_data):
     coin = get_access_token()
 
-    # Concatenate booking numbers into customer_notes
     booking_numbers = form_data.get('booking_numbers_concat', '')
 
-    # Resolve broker names for Zoho payload
     from core.models import Employee
     second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
@@ -552,13 +537,13 @@ def submit_contract(form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
-            {"api_name": "cf_uom", "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
+            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
         ] if cf['value']
     ]
     if second_broker_name:
@@ -603,10 +588,8 @@ def submit_contract(form_data):
 def update_contract(salesorder_id, form_data):
     token = get_access_token()
 
-    # Concatenate booking numbers into customer_notes
     booking_numbers = form_data.get('booking_numbers_concat', '')
 
-    # Resolve broker names for Zoho payload
     from core.models import Employee
     second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
@@ -624,13 +607,13 @@ def update_contract(salesorder_id, form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
-            {"api_name": "cf_uom", "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
+            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
         ] if cf['value']
     ]
     if second_broker_name:
@@ -692,36 +675,39 @@ def upsert_contract_from_zoho(detail):
         existing = Contract(salesorder_id=salesorder_id)
         db.session.add(existing)
 
-    existing.salesorder_number = detail.get('salesorder_number', '')
-    existing.status = detail.get('status', '')
-    existing.last_modified_time = detail.get('last_modified_time', '')
-    existing.date = detail.get('date', '')
-    existing.shipment_date = detail.get('shipment_date', '')
-    existing.cf_shipment_end_date = custom.get('cf_shipment_end_date', '')
-    existing.customer_id = detail.get('customer_id', '')
-    existing.customer_name = detail.get('customer_name', '')
-    existing.cf_buyer = custom.get('cf_buyer', '')
-    existing.item_id = first_item.get('item_id', '')
-    existing.item_name = first_item.get('name', '')
-    existing.quantity = first_item.get('quantity')
-    existing.rate = first_item.get('rate')
+    existing.salesorder_number      = detail.get('salesorder_number', '')
+    existing.status                 = detail.get('status', '')
+    existing.last_modified_time     = detail.get('last_modified_time', '')
+    existing.date                   = detail.get('date', '')
+    existing.shipment_date          = detail.get('shipment_date', '')
+    existing.cf_shipment_end_date   = custom.get('cf_shipment_end_date', '')
+    existing.customer_id            = detail.get('customer_id', '')
+    existing.customer_name          = detail.get('customer_name', '')
+    existing.cf_buyer               = custom.get('cf_buyer', '')
+    buyer_name                      = custom.get('cf_buyer', '')
+    buyer_customer                  = Customer.query.filter_by(customer_name=buyer_name).first() if buyer_name else None
+    existing.cf_buyer_id            = buyer_customer.customer_id if buyer_customer else None
+    existing.item_id                = first_item.get('item_id', '')
+    existing.item_name              = first_item.get('name', '')
+    existing.quantity               = first_item.get('quantity')
+    existing.rate                   = first_item.get('rate')
     existing.cf_item_contract_price = safe_float(custom.get('cf_item_contract_price'))
-    existing.cf_trnspname = custom.get('cf_trnspname', '')
-    existing.cf_uom = custom.get('cf_uom', '')
-    existing.cf_customer_ref = custom.get('cf_customer_ref', '')
-    existing.cf_co_broker = custom.get('cf_co_broker', '')
-    existing.cf_co_brokerage_rate = safe_float(custom.get('cf_co_brokerage_rate'))
-    existing.cf_split_broker = custom.get('cf_split_broker', '')
-    existing.cf_split_percentage = safe_float(custom.get('cf_split_percentage'))
-    existing.cf_vessel_name = custom.get('cf_vessel_name', '')
-    existing.cf_origin_location = custom.get('cf_origin_location', '')
-    existing.salesperson_name = detail.get('salesperson_name', '')
-    existing.salesperson_id = detail.get('salesperson_id', '')
-    existing.location_id = detail.get('location_id', '')
-    existing.location_name = detail.get('location_name', '')
-    existing.reference_number = detail.get('reference_number', '')
-    existing.notes = detail.get('notes', '')
-    existing.terms = detail.get('terms', '')
+    existing.cf_trnspname           = custom.get('cf_trnspname', '')
+    existing.cf_uom                 = custom.get('cf_uom', '')
+    existing.cf_customer_ref        = custom.get('cf_customer_ref', '')
+    existing.cf_co_broker           = custom.get('cf_co_broker', '')
+    existing.cf_co_brokerage_rate   = safe_float(custom.get('cf_co_brokerage_rate'))
+    existing.cf_split_broker        = custom.get('cf_split_broker', '')
+    existing.cf_split_percentage    = safe_float(custom.get('cf_split_percentage'))
+    existing.cf_vessel_name         = custom.get('cf_vessel_name', '')
+    existing.cf_origin_location     = custom.get('cf_origin_location', '')
+    existing.salesperson_name       = detail.get('salesperson_name', '')
+    existing.salesperson_id         = detail.get('salesperson_id', '')
+    existing.location_id            = detail.get('location_id', '')
+    existing.location_name          = detail.get('location_name', '')
+    existing.reference_number       = detail.get('reference_number', '')
+    existing.notes                  = detail.get('notes', '')
+    existing.terms                  = detail.get('terms', '')
 
     db.session.commit()
 
@@ -755,20 +741,22 @@ def contract_to_form_data(contract):
         'shipping_date_end': custom.get('cf_shipment_end_date', ''),
         'location_id': contract.get('location_id', ''),
         'location_name': contract.get('location_name', ''),
-        # salesperson_employee_id and second_broker_employee_id are not stored here
-        # because they come from the broker subform on submit/update, not from Books.
-        # booking_numbers_concat is assembled at submit/update time from the local Shipment table.
     }
 
 
 def contract_to_form_data_local(contract):
     """Convert a local Contract model instance to a flat form_data dict for prefill."""
+    buyer_id = contract.cf_buyer_id
+    if not buyer_id and contract.cf_buyer:
+        buyer_customer = Customer.query.filter_by(customer_name=contract.cf_buyer).first()
+        buyer_id = buyer_customer.customer_id if buyer_customer else ''
+
     return {
         'seller': contract.customer_id or '',
-        'buyer': contract.cf_buyer_id or '',
+        'buyer': buyer_id or '',
         'contract_date': '',
-        'shipping_date': contract.shipment_date or '',
-        'shipping_date_end': contract.cf_shipment_end_date or '',
+        'shipping_date': '',
+        'shipping_date_end': contract.shipment_date or contract.cf_shipment_end_date or '',
         'delivery_notes': contract.notes or '',
         'terms': contract.terms or '',
         'commodity': contract.item_id or '',
