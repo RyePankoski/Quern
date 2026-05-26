@@ -75,53 +75,6 @@
             </div>
         </div>
 
-        <!-- Transportation Details -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Transportation Details</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Transportation</label>
-                        <select class="form-select" name="transportation">
-                            <option value="">-- Select --</option>
-                            {% for option in ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
-                            <option value="{{ option }}"
-                                    {% if prefill and prefill['transportation'] == option %}selected{% endif %}>
-                                {{ option }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Packing in Bulk</label>
-                        <select class="form-select" name="packing">
-                            <option value="">-- Select --</option>
-                            <option>Yes</option>
-                            <option>No</option>
-                            <option>N/A</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Expected Shipping Date Start</label>
-                        <input type="date" class="form-control" name="shipping_date"
-                               value="{{ prefill.shipping_date if prefill else '' }}">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Expected Shipping Date End</label>
-                        <input type="date" class="form-control" name="shipping_date_end"
-                               value="{{ prefill.shipping_date_end if prefill else '' }}">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Delivery Notes</label>
-                        <textarea class="form-control" name="delivery_notes" rows="4"
-                                  placeholder="Enter delivery notes...">{{ prefill.delivery_notes if prefill else '' }}</textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Commodity Details -->
         <div class="card mb-4">
             <div class="card-header">
@@ -183,10 +136,57 @@
             </div>
         </div>
 
-        <!-- Co-Broker -->
+        <!-- Transportation Details -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Co-Broker</h5>
+                <h5 class="mb-0">Transportation Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Transportation</label>
+                        <select class="form-select" name="transportation">
+                            <option value="">-- Select --</option>
+                            {% for option in ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
+                            <option value="{{ option }}"
+                                    {% if prefill and prefill['transportation'] == option %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Packing in Bulk</label>
+                        <select class="form-select" name="packing">
+                            <option value="">-- Select --</option>
+                            <option>Yes</option>
+                            <option>No</option>
+                            <option>N/A</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date Start</label>
+                        <input type="date" class="form-control" name="shipping_date"
+                               value="{{ prefill.shipping_date if prefill else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date End</label>
+                        <input type="date" class="form-control" name="shipping_date_end"
+                               value="{{ prefill.shipping_date_end if prefill else '' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Delivery Notes</label>
+                        <textarea class="form-control" name="delivery_notes" rows="4"
+                                  placeholder="Enter delivery notes...">{{ prefill.delivery_notes if prefill else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Broker Team -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Broker Team</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3 mb-4">
@@ -247,10 +247,10 @@
             </div>
         </div>
 
-        <!-- Contract Status -->
+        <!-- Shipments and Status -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Contract Status</h5>
+                <h5 class="mb-0">Shipments and Status</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3">

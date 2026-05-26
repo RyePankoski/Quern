@@ -275,21 +275,26 @@ def sync_employees():
             else:
                 print(f"  Employee {e.get('cf_employees')} has no office field. Available keys: {list(e.keys())}")
 
+        position_val = e.get('cf_position') or ''
+        is_active = 'inactive' not in position_val.lower()
+
         existing = Employee.query.get(e.get('module_record_id'))
         if existing:
             existing.employee_name = e.get('cf_employees')
             existing.email = e.get('cf_email')
             existing.office = office_val
-            existing.position = e.get('cf_position')
+            existing.position = position_val
             existing.salesperson_id = e.get('cf_salesperson_id')
+            existing.is_active = is_active
         else:
             new_employee = Employee(
                 employee_id=e.get('module_record_id'),
                 employee_name=e.get('cf_employees'),
                 email=e.get('cf_email'),
                 office=office_val,
-                position=e.get('cf_position'),
-                salesperson_id=e.get('cf_salesperson_id')
+                position=position_val,
+                salesperson_id=e.get('cf_salesperson_id'),
+                is_active=is_active
             )
             db.session.add(new_employee)
 
@@ -550,8 +555,11 @@ def submit_contract(form_data):
         custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
         second_broker_pct = form_data.get('second_broker_percentage', '')
         if second_broker_pct:
-            custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
-
+            try:
+                pct_decimal = float(second_broker_pct) / 100
+            except (ValueError, TypeError):
+                pct_decimal = second_broker_pct
+            custom_fields.append({"api_name": "cf_split_percentage", "value": pct_decimal})
     payload = {
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
@@ -620,7 +628,11 @@ def update_contract(salesorder_id, form_data):
         custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
         second_broker_pct = form_data.get('second_broker_percentage', '')
         if second_broker_pct:
-            custom_fields.append({"api_name": "cf_split_percentage", "value": second_broker_pct})
+            try:
+                pct_decimal = float(second_broker_pct) / 100
+            except (ValueError, TypeError):
+                pct_decimal = second_broker_pct
+            custom_fields.append({"api_name": "cf_split_percentage", "value": pct_decimal})
 
     payload = {
         "customer_id": form_data.get('seller'),
