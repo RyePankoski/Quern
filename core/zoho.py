@@ -724,6 +724,52 @@ def upsert_contract_from_zoho(detail):
     db.session.commit()
 
 
+def incremental_sync():
+    """Sync contracts modified since last sync. Updates SyncState with timestamp."""
+    from core.models import SyncState
+    from datetime import datetime, timezone
+
+    # Get last sync time
+    state = SyncState.query.filter_by(key='last_incremental_sync').first()
+    last_sync = state.value if state else None
+
+    token = get_access_token()
+    params = {"organization_id": ORG_ID, "per_page": 200, "page": 1}
+    if last_sync:
+        params["last_modified_time"] = last_sync
+
+    synced = 0
+    while True:
+        response = requests.get(
+            "https://www.zohoapis.com/books/v3/salesorders",
+            headers={"Authorization": f"Zoho-oauthtoken {token}"},
+            params=params
+        )
+        data = response.json()
+        orders = data.get('salesorders', [])
+
+        for order in orders:
+            salesorder_id = order['salesorder_id']
+            detail = get_sales_order(salesorder_id)
+            upsert_contract_from_zoho(detail)
+            synced += 1
+
+        if not data.get('page_context', {}).get('has_more_page', False):
+            break
+        params['page'] += 1
+
+    # Update last sync timestamp
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+0000')
+    if state:
+        state.value = now
+        state.updated_at = datetime.utcnow()
+    else:
+        db.session.add(SyncState(key='last_incremental_sync', value=now))
+    db.session.commit()
+
+    return synced
+
+
 def contract_to_form_data(contract):
     """Convert a raw Books sales order dict to a flat form_data dict."""
     custom = {f['api_name']: f['value'] for f in contract.get('custom_fields', [])}

@@ -174,3 +174,11 @@ class BrokerCommission(db.Model):
     percentage = db.Column(db.Float, nullable=False)
     amount = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class SyncState(db.Model):
+    __tablename__ = 'sync_state'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(200), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
