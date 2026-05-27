@@ -37,6 +37,28 @@
         letter-spacing: 0.05em;
         font-size: 0.95rem;
     }
+
+    #declined-banner {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 1500;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #declined-banner-inner {
+        font-size: 6rem;
+        font-weight: 700;
+        color: rgba(180, 30, 30, 0.45);
+        letter-spacing: 0.15em;
+        transform: rotate(0deg);
+        border: 6px solid rgba(180, 30, 30, 0.45);
+        padding: 0.5rem 2rem;
+        border-radius: 8px;
+        user-select: none;
+    }
 </style>
 
 <div class="container py-4">
@@ -424,6 +446,18 @@
     Tasks ({{ tasks | selectattr('status', 'equalto', 'pending') | list | length }})
 </button>
 
+<button id="decline-btn"
+        style="position:fixed; bottom:2rem; left:calc(2rem + 130px); z-index:3500; padding:0.75rem 1.5rem;"
+        class="btn {% if contract['is_declined'] %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}">
+    {% if contract['is_declined'] %}Reactivate Contract{% else %}Mark as Declined{% endif %}
+</button>
+
+{% if contract['is_declined'] %}
+<div id="declined-banner">
+    <div id="declined-banner-inner">DECLINED</div>
+</div>
+{% endif %}
+
 <div id="task-overlay"></div>
 <div id="task-box"></div>
 <div id="unsaved-banner">Unsaved Changes</div>
@@ -701,6 +735,44 @@
             e.returnValue = '';
         }
     });
+
+    (function () {
+        const btn = document.getElementById('decline-btn');
+        let isDeclined = {{ 'true' if contract['is_declined'] else 'false' }};
+        const salesorderId = {{ contract['salesorder_id'] | tojson }};
+
+        btn.addEventListener('click', () => {
+            const msg = isDeclined
+                ? 'Reactivate this contract?'
+                : 'Mark this contract as declined? This can be undone.';
+            if (!confirm(msg)) return;
+
+            fetch(`/contracts/${salesorderId}/decline`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok) return;
+                    isDeclined = data.is_declined;
+                    if (isDeclined) {
+                        btn.textContent = 'Reactivate Contract';
+                        btn.classList.remove('btn-outline-danger');
+                        btn.classList.add('btn-outline-secondary');
+                        let banner = document.getElementById('declined-banner');
+                        if (!banner) {
+                            banner = document.createElement('div');
+                            banner.id = 'declined-banner';
+                            banner.innerHTML = '<div id="declined-banner-inner">DECLINED</div>';
+                            document.body.appendChild(banner);
+                        }
+                    } else {
+                        btn.textContent = 'Mark as Declined';
+                        btn.classList.remove('btn-outline-secondary');
+                        btn.classList.add('btn-outline-danger');
+                        const banner = document.getElementById('declined-banner');
+                        if (banner) banner.remove();
+                    }
+                });
+        });
+    })();
 </script>
 
 {% endblock %}
