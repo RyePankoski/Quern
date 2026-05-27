@@ -211,6 +211,7 @@ def contract_detail(salesorder_id):
         'salesorder_id': c.salesorder_id,
         'salesorder_number': c.salesorder_number,
         'status': c.status,
+        'is_declined': c.is_declined,
         'date': c.date,
         'shipment_date': c.shipment_date,
         'customer_id': c.customer_id,
@@ -988,6 +989,17 @@ def delete_note(note_id):
     db.session.delete(note)
     db.session.commit()
     return redirect(f'/contracts/{salesorder_id}#notes')
+
+
+@app.route('/contracts/<salesorder_id>/decline', methods=['POST'])
+@login_required
+def toggle_decline(salesorder_id):
+    c = Contract.query.get(salesorder_id)
+    if not c:
+        return {'ok': False, 'error': 'Contract not found'}, 404
+    c.is_declined = not bool(c.is_declined)
+    db.session.commit()
+    return {'ok': True, 'is_declined': c.is_declined}
 
 
 # endregion

@@ -1,6 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
 
+<style>
+    tr.row-declined td {
+        background-color: rgba(139, 0, 0, 0.35) !important;
+        color: #c08080 !important;
+    }
+</style>
+
 <div class="container py-4">
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <h2 class="fw-semibold mb-0">All Contracts</h2>
@@ -38,6 +45,7 @@
                 <option>draft</option>
                 <option>confirmed</option>
                 <option>void</option>
+                <option value="declined">declined</option>
             </select>
         </div>
         <div class="col-6 col-md-2">
@@ -112,10 +120,12 @@
             <tbody id="contracts-tbody">
             {% for contract in contracts %}
             <tr onclick="window.location='/contracts/{{ contract.salesorder_id }}'" style="cursor: pointer;"
+                class="{% if contract.is_declined %}row-declined{% endif %}"
                 data-number="{{ contract.salesorder_number | lower }}"
                 data-buyer="{{ (contract.cf_buyer or '') | lower }}"
                 data-seller="{{ (contract.customer_name or '') | lower }}"
                 data-status="{{ (contract.status or '') | lower }}"
+                data-declined="{{ '1' if contract.is_declined else '0' }}"
                 data-date="{{ contract.date or '' }}"
                 data-commodity="{{ (contract.item_name or '') | lower }}"
                 data-broker="{{ (contract.salesperson_name or '') | lower }}"
@@ -178,7 +188,7 @@
                 (!commodity || d.commodity.includes(commodity)) &&
                 (!broker    || d.broker.includes(broker)) &&
                 (!office    || d.office.includes(office)) &&
-                (!status    || d.status === status) &&
+                (!status    || (status === 'declined' ? d.declined === '1' : d.status === status)) &&
                 (!uom       || d.uom === uom) &&
                 (!transport || d.transport === transport) &&
                 (!innetwork || d.innetwork === innetwork) &&
