@@ -68,8 +68,21 @@
     <!-- Existing Templates -->
     {% if templates %}
     {% set countries = templates | map(attribute='country') | unique | list %}
+
+    <!-- Filter -->
+    <div class="row g-2 mb-3">
+        <div class="col-md-3">
+            <select id="filter-country" class="form-select form-select-sm" onchange="filterCountry(this.value)">
+                <option value="">All Offices</option>
+                {% for country in countries %}
+                <option value="{{ country }}">{{ country }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
     {% for country in countries %}
-    <div class="card mb-4">
+    <div class="card mb-4 country-card" data-country="{{ country }}">
         <div class="card-header">
             <h5 class="mb-0">{{ country }}</h5>
         </div>
@@ -197,6 +210,11 @@
 
         document.body.appendChild(form);
         form.submit();
+    }
+    function filterCountry(val) {
+        document.querySelectorAll('.country-card').forEach(card => {
+            card.style.display = (!val || card.dataset.country === val) ? '' : 'none';
+        });
     }
 </script>
 
