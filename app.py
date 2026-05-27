@@ -16,7 +16,6 @@ from functions import *
 
 # endregion
 
-
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///quern.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -27,7 +26,6 @@ migrate = Migrate(app, db, render_as_batch=True)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-
 
 def admin_required(f):
     from functools import wraps
