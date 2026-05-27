@@ -724,12 +724,11 @@ def upsert_contract_from_zoho(detail):
     db.session.commit()
 
 
-def incremental_sync():
-    """Sync contracts modified since last sync. Updates SyncState with timestamp."""
+def incremental_sync_page(page):
+    """Sync one page of recently modified contracts. Returns has_more and count."""
     from core.models import SyncState
     from datetime import datetime, timezone, timedelta
 
-    # Get last sync time — default to 24 hours ago on first run
     state = SyncState.query.filter_by(key='last_incremental_sync').first()
     if state:
         last_sync = state.value
@@ -737,38 +736,39 @@ def incremental_sync():
         last_sync = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%S+0000')
 
     token = get_access_token()
-    params = {"organization_id": ORG_ID, "per_page": 200, "page": 1, "last_modified_time": last_sync}
+    params = {
+        "organization_id": ORG_ID,
+        "per_page": 10,
+        "page": page,
+        "last_modified_time": last_sync
+    }
 
-    synced = 0
-    while True:
-        response = requests.get(
-            "https://www.zohoapis.com/books/v3/salesorders",
-            headers={"Authorization": f"Zoho-oauthtoken {token}"},
-            params=params
-        )
-        data = response.json()
-        orders = data.get('salesorders', [])
+    response = requests.get(
+        "https://www.zohoapis.com/books/v3/salesorders",
+        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        params=params
+    )
+    data = response.json()
+    orders = data.get('salesorders', [])
 
-        for order in orders:
-            salesorder_id = order['salesorder_id']
-            detail = get_sales_order(salesorder_id)
-            upsert_contract_from_zoho(detail)
-            synced += 1
+    for order in orders:
+        salesorder_id = order['salesorder_id']
+        detail = get_sales_order(salesorder_id)
+        upsert_contract_from_zoho(detail)
 
-        if not data.get('page_context', {}).get('has_more_page', False):
-            break
-        params['page'] += 1
+    has_more = data.get('page_context', {}).get('has_more_page', False)
 
-    # Update last sync timestamp
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+0000')
-    if state:
-        state.value = now
-        state.updated_at = datetime.utcnow()
-    else:
-        db.session.add(SyncState(key='last_incremental_sync', value=now))
-    db.session.commit()
+    # Only update timestamp on the final page
+    if not has_more:
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+0000')
+        if state:
+            state.value = now
+            state.updated_at = datetime.utcnow()
+        else:
+            db.session.add(SyncState(key='last_incremental_sync', value=now))
+        db.session.commit()
 
-    return synced
+    return {'has_more': has_more, 'count': len(orders)}
 
 
 def contract_to_form_data(contract):
