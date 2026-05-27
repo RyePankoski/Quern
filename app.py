@@ -1,14 +1,16 @@
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item, sync_customers_page, sync_contracts_page
+import os
+from datetime import datetime
+
 from flask import Flask, render_template, request, redirect, flash, send_file, session
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+
+from core import zoho
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, Contract, Shipment, \
     BrokerCommission, ContractNote
+from core.pdf import generate_contract_pdf, generate_contract_docx
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
-from core.pdf import generate_contract_pdf, generate_contract_docx
-from datetime import datetime
-from core import zoho
-import os
+from core.zoho import sync_customers_page, sync_contracts_page
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///quern.db')
@@ -345,18 +347,29 @@ def bulk_edit_save(salesorder_id):
     field = data.get('field')
     value = data.get('value')
 
-    allowed_fields = {'quantity', 'seller_reference', 'shipping_date_end',
-                      'uom', 'transportation', 'co_broker_name', 'buyer_reference'}
+    allowed_fields = {
+        # Zoho fields
+        'quantity', 'commission_rate', 'seller_reference', 'shipping_date_end', 'contract_date',
+        'uom', 'transportation', 'co_broker_name', 'vessel_name',
+        'commodity_rate', 'co_brokerage_rate', 'delivery_notes', 'terms',
+        # Local-only fields
+        'buyer_reference', 'in_network', 'packing',
+    }
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
-    # buyer_reference is local-only — save to Contract and return early
-    if field == 'buyer_reference':
+    # Local-only fields — save to Contract and return early, no Zoho call
+    if field in ('buyer_reference', 'in_network', 'packing'):
         meta = Contract.query.get(salesorder_id)
         if not meta:
             meta = Contract(salesorder_id=salesorder_id)
             db.session.add(meta)
-        meta.buyer_reference = value.strip() or None
+        if field == 'buyer_reference':
+            meta.buyer_reference = value.strip() or None
+        elif field == 'in_network':
+            meta.in_network = True if value == 'true' else False if value == 'false' else None
+        elif field == 'packing':
+            meta.packing = value.strip() or None
         db.session.commit()
         return {'ok': True}
 
@@ -380,6 +393,7 @@ def bulk_edit_save(salesorder_id):
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
         check_task_reactivity(salesorder_id, {field: value})
+        zoho.upsert_contract_from_zoho(result['salesorder'])
         return {'ok': True}
     else:
         return {'ok': False, 'error': result.get('message', 'Unknown error')}, 500

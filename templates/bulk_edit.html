@@ -6,29 +6,42 @@
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <div>
             <h2 class="fw-semibold mb-0">Bulk Edit</h2>
-            <span class="text-muted">Edit a single field across all contracts.</span>
+            <span class="text-muted">Edit a single field across filtered contracts.</span>
         </div>
         <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
     </div>
 
-    <div class="mb-4" style="max-width: 280px;">
+    <div class="mb-4" style="max-width: 320px;">
         <label class="form-label">Field to Edit</label>
         <select class="form-select" id="field-select">
             <option value="">-- Select a field --</option>
-            <option value="vessel_name">Vessel Name</option>
-            <option value="quantity">Quantity</option>
-            <option value="seller_reference">Seller Reference #</option>
-            <option value="shipping_date_end">Shipping End Date</option>
-            <option value="uom">UOM</option>
-            <option value="transportation">Transportation Type</option>
-            <option value="co_broker_name">Co-Broker Name</option>
+            <optgroup label="Zoho Fields">
+                <option value="vessel_name">Vessel Name</option>
+                <option value="quantity">Quantity</option>
+                <option value="commodity_rate">Contract Price</option>
+                <option value="commission_rate">Commission Rate</option>
+                <option value="seller_reference">Seller Reference #</option>
+                <option value="shipping_date_end">Shipping End Date</option>
+                <option value="contract_date">Contract Date</option>
+                <option value="uom">UOM</option>
+                <option value="transportation">Transportation Type</option>
+                <option value="co_broker_name">Co-Broker Name</option>
+                <option value="co_brokerage_rate">Co-Brokerage Rate</option>
+                <option value="delivery_notes">Notes</option>
+                <option value="terms">Terms</option>
+            </optgroup>
+            <optgroup label="Local Fields">
+                <option value="buyer_reference">Buyer Reference #</option>
+                <option value="in_network">In Network</option>
+                <option value="packing">Packing</option>
+            </optgroup>
         </select>
     </div>
 
     <div id="table-wrapper" style="display:none;">
 
         <!-- Filter Bar -->
-        <div class="row g-2 mb-3">
+        <div class="row g-2 mb-2">
             <div class="col-6 col-md-2">
                 <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
             </div>
@@ -38,19 +51,18 @@
             <div class="col-6 col-md-2">
                 <input type="text" id="filter-seller" class="form-control form-control-sm" placeholder="Seller">
             </div>
-            <div class="col-6 col-md-3">
-                <select id="filter-uom" class="form-select form-select-sm">
-                    <option value="">All UOMs</option>
-                    <option>metric tons</option>
-                    <option>bushels</option>
-                    <option>short tons</option>
-                    <option>LBS</option>
-                    <option>cars</option>
-                    <option>consulting</option>
-                    <option>other</option>
-                </select>
+            <div class="col-6 col-md-2">
+                <input type="text" id="filter-commodity" class="form-control form-control-sm" placeholder="Commodity">
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
+                <input type="text" id="filter-broker" class="form-control form-control-sm" placeholder="Broker">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" id="filter-office" class="form-control form-control-sm" placeholder="Office">
+            </div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-2">
                 <select id="filter-status" class="form-select form-select-sm">
                     <option value="">All Statuses</option>
                     <option>draft</option>
@@ -58,36 +70,122 @@
                     <option>void</option>
                 </select>
             </div>
+            <div class="col-6 col-md-2">
+                <select id="filter-uom" class="form-select form-select-sm">
+                    <option value="">All UOMs</option>
+                    <option>metric tons</option>
+                    <option>bushels</option>
+                    <option>short tons</option>
+                    <option>lbs</option>
+                    <option>cars</option>
+                    <option>consulting</option>
+                    <option>other</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select id="filter-transport" class="form-select form-select-sm">
+                    <option value="">All Transport</option>
+                    <option>Barge</option>
+                    <option>containers</option>
+                    <option>Rail</option>
+                    <option>Rail or Truck</option>
+                    <option>Truck</option>
+                    <option>Vessel</option>
+                    <option>consulting</option>
+                    <option>Performance</option>
+                    <option>Paper</option>
+                    <option>Freight</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select id="filter-innetwork" class="form-select form-select-sm">
+                    <option value="">In Network: All</option>
+                    <option value="1">In Network</option>
+                    <option value="0">Not In Network</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract From</label>
+                <input type="date" id="filter-date-from" class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract To</label>
+                <input type="date" id="filter-date-to" class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship From</label>
+                <input type="date" id="filter-ship-from" class="form-control form-control-sm">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship To</label>
+                <input type="date" id="filter-ship-to" class="form-control form-control-sm">
+            </div>
+        </div>
+
+        <!-- Apply All Bar -->
+        <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded" style="background:#1e1e1c; border:1px solid #3a3a38;">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="select-all">
+                <label class="form-check-label text-muted" for="select-all">Select all visible</label>
+            </div>
+            <span id="selected-count" class="text-muted" style="font-size:0.85rem;">0 selected</span>
+            <div id="apply-all-area" class="d-flex align-items-center gap-2 ms-auto" style="display:none !important;">
+                <span class="text-muted" style="font-size:0.85rem;">Apply value to all selected:</span>
+                <div id="apply-all-input-wrap"></div>
+                <button id="apply-all-btn" class="btn btn-sm"
+                    style="background-color:#4f7a1a; border-color:#4f7a1a; color:#fff; min-width:120px;">
+                    Apply to Selected
+                </button>
+            </div>
         </div>
 
         <div class="table-responsive">
             <table class="table table-bordered table-hover">
                 <thead class="table-dark">
                     <tr>
+                        <th style="width:40px;"></th>
                         <th>Contract #</th>
                         <th>Buyer</th>
                         <th>Seller</th>
                         <th id="field-col-header">Value</th>
-                        <th style="width: 80px;"></th>
+                        <th style="width:80px;"></th>
                     </tr>
                 </thead>
                 <tbody id="bulk-tbody">
                     {% for contract in contracts %}
                     <tr
                         data-id="{{ contract.salesorder_id }}"
-                        data-vessel="{{ contract.cf_vessel_name or '' }}"
+                        data-vessel_name="{{ contract.cf_vessel_name or '' }}"
                         data-quantity="{{ contract.quantity or '' }}"
+                        data-commodity_rate="{{ contract.cf_item_contract_price or '' }}"
+                        data-commission_rate="{{ contract.rate or '' }}"
                         data-seller_reference="{{ contract.cf_customer_ref or '' }}"
                         data-shipping_date_end="{{ contract.cf_shipment_end_date or '' }}"
+                        data-contract_date="{{ contract.date or '' }}"
                         data-uom="{{ (contract.cf_uom or '') | lower }}"
                         data-transportation="{{ contract.cf_trnspname or '' }}"
                         data-co_broker_name="{{ contract.cf_co_broker or '' }}"
+                        data-co_brokerage_rate="{{ contract.cf_co_brokerage_rate or '' }}"
+                        data-delivery_notes="{{ contract.notes or '' }}"
+                        data-terms="{{ contract.terms or '' }}"
                         data-buyer_reference="{{ contract.buyer_reference or '' }}"
+                        data-in_network="{{ 'true' if contract.in_network else 'false' }}"
+                        data-packing="{{ contract.packing or '' }}"
                         data-number="{{ contract.salesorder_number | lower }}"
                         data-buyer="{{ (contract.cf_buyer or '') | lower }}"
-                        data-seller="{{ contract.customer_name | lower }}"
-                        data-status="{{ contract.status | lower }}"
-                        data-date="{{ contract.date or '' }}">
+                        data-seller="{{ (contract.customer_name or '') | lower }}"
+                        data-status="{{ (contract.status or '') | lower }}"
+                        data-date="{{ contract.date or '' }}"
+                        data-commodity="{{ (contract.item_name or '') | lower }}"
+                        data-broker="{{ (contract.salesperson_name or '') | lower }}"
+                        data-office="{{ (contract.location_name or '') | lower }}"
+                        data-innetwork="{{ '1' if contract.in_network else '0' }}"
+                        data-ship-start="{{ contract.shipment_date or '' }}"
+                        data-ship-end="{{ contract.cf_shipment_end_date or '' }}">
+                        <td class="text-center">
+                            <input type="checkbox" class="form-check-input row-check">
+                        </td>
                         <td>{{ contract.salesorder_number }}</td>
                         <td>{{ contract.cf_buyer or '' }}</td>
                         <td>{{ contract.customer_name }}</td>
@@ -111,153 +209,343 @@
 
 <script>
     const fieldLabels = {
-        vessel_name: 'Vessel Name',
-        quantity: 'Quantity',
+        vessel_name:      'Vessel Name',
+        quantity:         'Quantity',
+        commodity_rate:   'Contract Price',
+        commission_rate:  'Commission Rate',
         seller_reference: 'Seller Reference #',
-        shipping_date_end: 'Shipping End Date',
-        uom: 'UOM',
-        transportation: 'Transportation Type',
-        co_broker_name: 'Co-Broker Name'
+        shipping_date_end:'Shipping End Date',
+        contract_date:    'Contract Date',
+        uom:              'UOM',
+        transportation:   'Transportation Type',
+        co_broker_name:   'Co-Broker Name',
+        co_brokerage_rate:'Co-Brokerage Rate',
+        delivery_notes:   'Notes',
+        terms:            'Terms',
+        buyer_reference:  'Buyer Reference #',
+        in_network:       'In Network',
+        packing:          'Packing',
     };
 
     const fieldTypes = {
-        quantity: 'number',
-        shipping_date_end: 'date'
+        quantity:         'number',
+        commodity_rate:   'number',
+        commission_rate:  'number',
+        co_brokerage_rate:'number',
+        shipping_date_end:'date',
+        contract_date:    'date',
+        delivery_notes:   'textarea',
+        terms:            'textarea',
     };
 
     const uomOptions = ['metric tons', 'bushels', 'short tons', 'LBS', 'cars', 'consulting', 'other'];
     const transportationOptions = ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'consulting', 'Performance', 'Paper', 'Freight', 'Other'];
+    const packingOptions = ['Bulk', 'Bags', 'Totes', 'Other'];
 
-    const fieldSelect = document.getElementById('field-select');
-    const tableWrapper = document.getElementById('table-wrapper');
+    const fieldSelect    = document.getElementById('field-select');
+    const tableWrapper   = document.getElementById('table-wrapper');
     const fieldColHeader = document.getElementById('field-col-header');
-    const rows = document.querySelectorAll('#bulk-tbody tr');
+    const selectAll      = document.getElementById('select-all');
+    const selectedCount  = document.getElementById('selected-count');
+    const applyAllArea   = document.getElementById('apply-all-area');
+    const applyAllBtn    = document.getElementById('apply-all-btn');
+    const applyAllWrap   = document.getElementById('apply-all-input-wrap');
+
+    let currentField = '';
+
+    // ── Filters ──────────────────────────────────────────────────────────────
+
+    const filterIds = [
+        'filter-number', 'filter-buyer', 'filter-seller', 'filter-commodity',
+        'filter-broker', 'filter-office', 'filter-status', 'filter-uom',
+        'filter-transport', 'filter-innetwork', 'filter-date-from', 'filter-date-to',
+        'filter-ship-from', 'filter-ship-to'
+    ];
+    filterIds.forEach(id => document.getElementById(id).addEventListener('input', () => {
+        applyFilters();
+        updateSelectAllState();
+    }));
 
     function applyFilters() {
-        const number = document.getElementById('filter-number').value.toLowerCase();
-        const buyer = document.getElementById('filter-buyer').value.toLowerCase();
-        const seller = document.getElementById('filter-seller').value.toLowerCase();
-        const uom = document.getElementById('filter-uom').value.toLowerCase();
-        const status = document.getElementById('filter-status').value.toLowerCase();
+        const number    = document.getElementById('filter-number').value.toLowerCase();
+        const buyer     = document.getElementById('filter-buyer').value.toLowerCase();
+        const seller    = document.getElementById('filter-seller').value.toLowerCase();
+        const commodity = document.getElementById('filter-commodity').value.toLowerCase();
+        const broker    = document.getElementById('filter-broker').value.toLowerCase();
+        const office    = document.getElementById('filter-office').value.toLowerCase();
+        const status    = document.getElementById('filter-status').value.toLowerCase();
+        const uom       = document.getElementById('filter-uom').value.toLowerCase();
+        const transport = document.getElementById('filter-transport').value.toLowerCase();
+        const innetwork = document.getElementById('filter-innetwork').value;
+        const dateFrom  = document.getElementById('filter-date-from').value;
+        const dateTo    = document.getElementById('filter-date-to').value;
+        const shipFrom  = document.getElementById('filter-ship-from').value;
+        const shipTo    = document.getElementById('filter-ship-to').value;
 
-        rows.forEach(row => {
-            const matchNumber = !number || row.dataset.number.includes(number);
-            const matchBuyer = !buyer || row.dataset.buyer.includes(buyer);
-            const matchSeller = !seller || row.dataset.seller.includes(seller);
-            const matchUom = !uom || row.dataset.uom === uom;
-            const matchStatus = !status || row.dataset.status === status;
-            row.style.display = (matchNumber && matchBuyer && matchSeller && matchUom && matchStatus) ? '' : 'none';
+        allRows().forEach(row => {
+            const d = row.dataset;
+            const show =
+                (!number    || d.number.includes(number)) &&
+                (!buyer     || d.buyer.includes(buyer)) &&
+                (!seller    || d.seller.includes(seller)) &&
+                (!commodity || d.commodity.includes(commodity)) &&
+                (!broker    || d.broker.includes(broker)) &&
+                (!office    || d.office.includes(office)) &&
+                (!status    || d.status === status) &&
+                (!uom       || d.uom === uom) &&
+                (!transport || d.transport === transport) &&
+                (!innetwork || d.innetwork === innetwork) &&
+                (!dateFrom  || d.date >= dateFrom) &&
+                (!dateTo    || d.date <= dateTo) &&
+                (!shipFrom  || (d.shipStart && d.shipStart >= shipFrom)) &&
+                (!shipTo    || (d.shipEnd   && d.shipEnd   <= shipTo));
+            row.style.display = show ? '' : 'none';
+            if (!show) row.querySelector('.row-check').checked = false;
         });
+        updateSelectedCount();
     }
 
-    ['filter-number', 'filter-buyer', 'filter-seller', 'filter-uom', 'filter-status'].forEach(id => {
-        document.getElementById(id).addEventListener('input', applyFilters);
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function allRows() {
+        return Array.from(document.querySelectorAll('#bulk-tbody tr'));
+    }
+
+    function visibleRows() {
+        return allRows().filter(r => r.style.display !== 'none');
+    }
+
+    function checkedRows() {
+        return visibleRows().filter(r => r.querySelector('.row-check').checked);
+    }
+
+    function makeInput(field, currentVal) {
+        let input;
+        if (field === 'uom') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            input.innerHTML = '<option value="">-- Select --</option>' +
+                uomOptions.map(o => `<option value="${o}" ${o.toLowerCase() === currentVal.toLowerCase() ? 'selected' : ''}>${o}</option>`).join('');
+        } else if (field === 'transportation') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            input.innerHTML = '<option value="">-- Select --</option>' +
+                transportationOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
+        } else if (field === 'in_network') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            input.innerHTML = '<option value="">-- Select --</option>' +
+                [['true','In Network'],['false','Not In Network']].map(([v,l]) =>
+                    `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${l}</option>`).join('');
+        } else if (field === 'packing') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            input.innerHTML = '<option value="">-- Select --</option>' +
+                packingOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
+        } else if (fieldTypes[field] === 'textarea') {
+            input = document.createElement('textarea');
+            input.className = 'form-control form-control-sm';
+            input.rows = 2;
+            input.value = currentVal;
+        } else {
+            input = document.createElement('input');
+            input.type = fieldTypes[field] || 'text';
+            if (['quantity','commodity_rate','commission_rate','co_brokerage_rate'].includes(field)) input.step = '0.01';
+            input.className = 'form-control form-control-sm';
+            input.value = currentVal;
+        }
+        return input;
+    }
+
+    // ── Select All / Count ────────────────────────────────────────────────────
+
+    function updateSelectedCount() {
+        const n = checkedRows().length;
+        selectedCount.textContent = `${n} selected`;
+        applyAllArea.style.display = (n > 0 && currentField) ? 'flex' : 'none';
+    }
+
+    function updateSelectAllState() {
+        const visible = visibleRows();
+        const checked = visible.filter(r => r.querySelector('.row-check').checked);
+        selectAll.indeterminate = checked.length > 0 && checked.length < visible.length;
+        selectAll.checked = visible.length > 0 && checked.length === visible.length;
+    }
+
+    selectAll.addEventListener('change', () => {
+        visibleRows().forEach(r => r.querySelector('.row-check').checked = selectAll.checked);
+        updateSelectedCount();
     });
 
+    document.getElementById('bulk-tbody').addEventListener('change', e => {
+        if (e.target.classList.contains('row-check')) {
+            updateSelectedCount();
+            updateSelectAllState();
+        }
+    });
+
+    // ── Field Select ──────────────────────────────────────────────────────────
+
     fieldSelect.addEventListener('change', () => {
-        const field = fieldSelect.value;
-        if (!field) {
+        currentField = fieldSelect.value;
+        if (!currentField) {
             tableWrapper.style.display = 'none';
             return;
         }
 
-        fieldColHeader.textContent = fieldLabels[field] || field;
+        fieldColHeader.textContent = fieldLabels[currentField] || currentField;
         tableWrapper.style.display = 'block';
 
-        rows.forEach(row => {
+        allRows().forEach(row => {
             const valueCell = row.querySelector('.value-cell');
-            const saveBtn = row.querySelector('.save-btn');
-            const currentVal = row.dataset[field] || '';
+            const saveBtn   = row.querySelector('.save-btn');
+            const currentVal = row.dataset[currentField] || '';
 
             valueCell.innerHTML = '';
-
-            let input;
-            if (field === 'uom') {
-                input = document.createElement('select');
-                input.className = 'form-select form-select-sm';
-                input.innerHTML = '<option value="">-- Select --</option>' +
-                    uomOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
-            } else if (field === 'transportation') {
-                input = document.createElement('select');
-                input.className = 'form-select form-select-sm';
-                input.innerHTML = '<option value="">-- Select --</option>' +
-                    transportationOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
-            } else {
-                input = document.createElement('input');
-                input.type = fieldTypes[field] || 'text';
-                if (field === 'quantity') input.step = '0.01';
-                input.className = 'form-control form-control-sm';
-                input.value = currentVal;
-            }
-
+            const input = makeInput(currentField, currentVal);
             input.dataset.original = currentVal;
             valueCell.appendChild(input);
 
             const newBtn = saveBtn.cloneNode(true);
             saveBtn.parentNode.replaceChild(newBtn, saveBtn);
-            newBtn.style.backgroundColor = '#3a3a38';
-            newBtn.style.borderColor = '#3a3a38';
-            newBtn.style.color = '#888780';
-            newBtn.disabled = true;
+            styleBtn(newBtn, 'idle');
 
             input.addEventListener('input', () => {
-                const dirty = input.value !== input.dataset.original;
-                newBtn.style.backgroundColor = dirty ? '#4f7a1a' : '#3a3a38';
-                newBtn.style.borderColor = dirty ? '#4f7a1a' : '#3a3a38';
-                newBtn.style.color = dirty ? '#fff' : '#888780';
-                newBtn.disabled = !dirty;
+                styleBtn(newBtn, input.value !== input.dataset.original ? 'dirty' : 'idle');
+                newBtn.disabled = input.value === input.dataset.original;
             });
 
-            newBtn.addEventListener('click', () => {
-                const salesorder_id = row.dataset.id;
-                newBtn.textContent = '...';
-                newBtn.disabled = true;
-
-                fetch(`/bulk_edit/${salesorder_id}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ field: field, value: input.value })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.ok) {
-                        input.dataset.original = input.value;
-                        newBtn.textContent = '✓';
-                        newBtn.style.backgroundColor = '#2a5a10';
-                        newBtn.style.borderColor = '#2a5a10';
-                        newBtn.style.color = '#fff';
-                        newBtn.disabled = true;
-                        setTimeout(() => {
-                            newBtn.textContent = 'Save';
-                            newBtn.style.backgroundColor = '#3a3a38';
-                            newBtn.style.borderColor = '#3a3a38';
-                            newBtn.style.color = '#888780';
-                        }, 1500);
-                    } else {
-                        newBtn.textContent = 'Error';
-                        newBtn.style.backgroundColor = '#8b0000';
-                        newBtn.style.borderColor = '#8b0000';
-                        newBtn.style.color = '#fff';
-                        newBtn.disabled = false;
-                        setTimeout(() => {
-                            newBtn.textContent = 'Save';
-                            newBtn.style.backgroundColor = '#4f7a1a';
-                            newBtn.style.borderColor = '#4f7a1a';
-                        }, 2000);
-                    }
-                })
-                .catch(() => {
-                    newBtn.textContent = 'Error';
-                    newBtn.style.backgroundColor = '#8b0000';
-                    newBtn.style.borderColor = '#8b0000';
-                    newBtn.style.color = '#fff';
-                    newBtn.disabled = false;
-                });
-            });
+            newBtn.addEventListener('click', () => saveSingle(row, currentField, input, newBtn));
         });
 
+        // Build the apply-all input
+        applyAllWrap.innerHTML = '';
+        const applyInput = makeInput(currentField, '');
+        applyInput.style.minWidth = '180px';
+        applyAllWrap.appendChild(applyInput);
+
+        applyAllBtn.onclick = () => applyToSelected(applyInput);
+
         applyFilters();
+        updateSelectedCount();
     });
+
+    // ── Save Single ───────────────────────────────────────────────────────────
+
+    function saveSingle(row, field, input, btn) {
+        const salesorder_id = row.dataset.id;
+        styleBtn(btn, 'saving');
+
+        fetch(`/bulk_edit/${salesorder_id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field, value: input.value })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                input.dataset.original = input.value;
+                row.dataset[field] = input.value;
+                styleBtn(btn, 'saved');
+                setTimeout(() => styleBtn(btn, 'idle'), 1500);
+            } else {
+                styleBtn(btn, 'error');
+                setTimeout(() => styleBtn(btn, 'dirty'), 2000);
+            }
+        })
+        .catch(() => {
+            styleBtn(btn, 'error');
+            setTimeout(() => styleBtn(btn, 'dirty'), 2000);
+        });
+    }
+
+    // ── Apply to Selected ─────────────────────────────────────────────────────
+
+    function applyToSelected(applyInput) {
+        const value = applyInput.value;
+        const targets = checkedRows();
+        if (!targets.length) return;
+
+        applyAllBtn.disabled = true;
+        applyAllBtn.textContent = `Saving 0 / ${targets.length}…`;
+
+        let done = 0;
+        let errors = 0;
+
+        function next(i) {
+            if (i >= targets.length) {
+                applyAllBtn.textContent = errors
+                    ? `Done (${errors} error${errors > 1 ? 's' : ''})`
+                    : `✓ Applied to ${done}`;
+                applyAllBtn.style.backgroundColor = errors ? '#8b0000' : '#2a5a10';
+                setTimeout(() => {
+                    applyAllBtn.textContent = 'Apply to Selected';
+                    applyAllBtn.style.backgroundColor = '#4f7a1a';
+                    applyAllBtn.disabled = false;
+                }, 2500);
+                return;
+            }
+
+            const row = targets[i];
+            const input = row.querySelector('.value-cell input, .value-cell select, .value-cell textarea');
+            const btn   = row.querySelector('.save-btn');
+
+            if (input) {
+                input.value = value;
+                styleBtn(btn, 'saving');
+            }
+
+            fetch(`/bulk_edit/${row.dataset.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: currentField, value })
+            })
+            .then(r => r.json())
+            .then(data => {
+                done++;
+                if (data.ok) {
+                    if (input) {
+                        input.dataset.original = value;
+                        row.dataset[currentField] = value;
+                    }
+                    styleBtn(btn, 'saved');
+                    setTimeout(() => styleBtn(btn, 'idle'), 1500);
+                } else {
+                    errors++;
+                    styleBtn(btn, 'error');
+                }
+                applyAllBtn.textContent = `Saving ${done} / ${targets.length}…`;
+                next(i + 1);
+            })
+            .catch(() => {
+                done++;
+                errors++;
+                styleBtn(btn, 'error');
+                applyAllBtn.textContent = `Saving ${done} / ${targets.length}…`;
+                next(i + 1);
+            });
+        }
+
+        next(0);
+    }
+
+    // ── Button Styles ─────────────────────────────────────────────────────────
+
+    function styleBtn(btn, state) {
+        const styles = {
+            idle:   { bg: '#3a3a38', border: '#3a3a38', color: '#888780', text: 'Save',  disabled: true  },
+            dirty:  { bg: '#4f7a1a', border: '#4f7a1a', color: '#fff',    text: 'Save',  disabled: false },
+            saving: { bg: '#3a3a38', border: '#3a3a38', color: '#888780', text: '…',     disabled: true  },
+            saved:  { bg: '#2a5a10', border: '#2a5a10', color: '#fff',    text: '✓',     disabled: true  },
+            error:  { bg: '#8b0000', border: '#8b0000', color: '#fff',    text: 'Error', disabled: false },
+        };
+        const s = styles[state];
+        btn.style.backgroundColor = s.bg;
+        btn.style.borderColor     = s.border;
+        btn.style.color           = s.color;
+        btn.textContent           = s.text;
+        btn.disabled              = s.disabled;
+    }
 </script>
 
 {% endblock %}
