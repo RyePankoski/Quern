@@ -2,12 +2,13 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers, get_sales_orders_for_item, sync_customers_page, sync_contracts_page
 from flask import Flask, render_template, request, redirect, flash, send_file, session
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, Contract, Shipment, \
-    BrokerCommission, ContractNote
+    BrokerCommission, ContractNote, SyncState
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from core.pdf import generate_contract_pdf, generate_contract_docx
 from datetime import datetime
 from core import zoho
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 
 app = Flask(__name__)
@@ -15,6 +16,18 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///que
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
 db.init_app(app)
+
+def run_incremental_sync():
+    with app.app_context():
+        try:
+            count = zoho.incremental_sync()
+            print(f"[Scheduler] Incremental sync complete: {count} contracts updated.")
+        except Exception as e:
+            print(f"[Scheduler] Incremental sync failed: {e}")
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(run_incremental_sync, 'cron', hour=2, minute=0)
+scheduler.start()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -785,6 +798,9 @@ def dev_action(action):
         elif action == 'first_time_startup':
             first_time_startup()
             result = 'First time startup complete.'
+        elif action == 'incremental_sync':
+            count = zoho.incremental_sync()
+            result = f'Incremental sync complete: {count} contracts updated.'
         else:
             result = f'Unknown action: {action}'
     return {'result': str(result)}
