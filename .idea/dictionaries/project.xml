@@ -2,6 +2,8 @@
   <dictionary name="project">
     <words>
       <w>salesorder</w>
+      <w>salesorders</w>
+      <w>trnspname</w>
     </words>
   </dictionary>
 </component>

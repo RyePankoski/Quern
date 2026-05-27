@@ -1,17 +1,20 @@
+# region Imports
 import os
-from datetime import datetime
-
+from datetime import timezone
 from flask import Flask, render_template, request, redirect, flash, send_file, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
 
 from core import zoho
-from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, Contract, Shipment, \
-    BrokerCommission, ContractNote
+
 from core.pdf import generate_contract_pdf, generate_contract_docx
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from core.zoho import sync_customers_page, sync_contracts_page
+
+from functions import *
+# endregion
+
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///quern.db')
@@ -33,11 +36,11 @@ def admin_required(f):
             flash('Admin access required.', 'danger')
             return redirect('/')
         return f(*args, **kwargs)
+
     return decorated
 
 
-# Routes to move to a new page
-
+# region Tabs/Pages
 @app.route('/')
 @login_required
 def home():
@@ -59,11 +62,8 @@ def item_detail(item_id):
         flash('Item not found.', 'danger')
         return redirect('/items')
 
-    # Use the item-filtered endpoint instead of fetching all orders and
-    # scanning line items — the list endpoint does not return line_items,
-    # so the old approach always produced zero results.
-    contracts = Contract.query.filter_by(item_id=item_id).order_by(Contract.date.desc()).all()
-    return render_template('item_detail.html', item=item, contracts=contracts)
+    contracts_list = Contract.query.filter_by(item_id=item_id).order_by(Contract.date.desc()).all()
+    return render_template('item_detail.html', item=item, contracts=contracts_list)
 
 
 @app.route('/counterparties')
@@ -81,35 +81,11 @@ def counterparty_detail(customer_id):
         flash('Counterparty not found.', 'danger')
         return redirect('/counterparties')
 
-    contracts = Contract.query.filter(
+    contracts_list = Contract.query.filter(
         db.or_(Contract.customer_id == customer_id, Contract.cf_buyer_id == customer_id)
     ).order_by(Contract.date.desc()).all()
 
-    return render_template('counterparty_detail.html', customer=customer, contracts=contracts)
-
-
-@app.route('/employees/<employee_id>/office', methods=['POST'])
-@login_required
-def update_employee_office(employee_id):
-    employee = Employee.query.get(employee_id)
-    if not employee:
-        return {'ok': False, 'error': 'Employee not found'}, 404
-    data = request.get_json()
-    employee.office = data.get('office', '').strip() or None
-    db.session.commit()
-    return {'ok': True}
-
-
-@app.route('/employees/<employee_id>/active', methods=['POST'])
-@login_required
-def update_employee_active(employee_id):
-    employee = Employee.query.get(employee_id)
-    if not employee:
-        return {'ok': False, 'error': 'Employee not found'}, 404
-    data = request.get_json()
-    employee.is_active = bool(data.get('is_active', True))
-    db.session.commit()
-    return {'ok': True}
+    return render_template('counterparty_detail.html', customer=customer, contracts=contracts_list)
 
 
 @app.route('/employees')
@@ -143,7 +119,6 @@ def new_contract():
                         'percentage': 100.0
                     })()]
 
-
     today = datetime.now().strftime('%Y-%m-%d')
     return render_template('new_contract.html', items=items, customers=customers, employees=employees, prefill=prefill,
                            prefill_brokers=prefill_brokers, locations=locations, today=today)
@@ -152,15 +127,77 @@ def new_contract():
 @app.route('/bulk_edit')
 @login_required
 def bulk_edit():
-    contracts = Contract.query.order_by(Contract.date.desc()).all()
-    return render_template('bulk_edit.html', contracts=contracts)
+    contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    return render_template('bulk_edit.html', contracts=contracts_list)
 
 
 @app.route('/contracts')
 @login_required
 def contracts():
-    contracts = Contract.query.order_by(Contract.date.desc()).all()
-    return render_template('contracts.html', contracts=contracts)
+    contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    return render_template('contracts.html', contracts=contracts_list)
+
+
+@app.route('/tasks')
+@login_required
+def tasks_view():
+    from sqlalchemy import func
+    task_counts = db.session.query(
+        Task.books_sales_order_id,
+        func.count(Task.id).label('total'),
+        func.sum(db.case((Task.status == 'pending', 1), else_=0)).label('pending')
+    ).group_by(Task.books_sales_order_id).all()
+
+    contract_map = {c.salesorder_id: c for c in Contract.query.all()}
+
+    task_list = []
+    for row in task_counts:
+        contract = contract_map.get(row.books_sales_order_id)
+        task_list.append({
+            'salesorder_id': row.books_sales_order_id,
+            'salesorder_number': contract.salesorder_number if contract else row.books_sales_order_id,
+            'location_name': contract.location_name if contract else '',
+            'total': row.total,
+            'pending': row.pending
+        })
+
+    task_list.sort(key=lambda x: x['pending'], reverse=True)
+    return render_template('tasks.html', task_list=task_list)
+
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    orders = Contract.query.order_by(Contract.date.desc()).all()
+    return render_template('dashboard.html', contracts=orders)
+
+
+# endregion
+
+
+# region Write routes
+@app.route('/employees/<employee_id>/office', methods=['POST'])
+@login_required
+def update_employee_office(employee_id):
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return {'ok': False, 'error': 'Employee not found'}, 404
+    data = request.get_json()
+    employee.office = data.get('office', '').strip() or None
+    db.session.commit()
+    return {'ok': True}
+
+
+@app.route('/employees/<employee_id>/active', methods=['POST'])
+@login_required
+def update_employee_active(employee_id):
+    employee = Employee.query.get(employee_id)
+    if not employee:
+        return {'ok': False, 'error': 'Employee not found'}, 404
+    data = request.get_json()
+    employee.is_active = bool(data.get('is_active', True))
+    db.session.commit()
+    return {'ok': True}
 
 
 @app.route('/contracts/<salesorder_id>')
@@ -171,7 +208,6 @@ def contract_detail(salesorder_id):
         flash('Contract not found.', 'danger')
         return redirect('/contracts')
 
-    # Build a dict that mirrors the old Zoho response shape for the template
     contract = {
         'salesorder_id': c.salesorder_id,
         'salesorder_number': c.salesorder_number,
@@ -195,7 +231,7 @@ def contract_detail(salesorder_id):
         'custom': {
             'cf_buyer': c.cf_buyer,
             'cf_item_contract_price': c.cf_item_contract_price,
-            'cf_trnspname': c.cf_trnspname,
+            'cf_transparent': c.cf_trnspname,
             'cf_uom': c.cf_uom,
             'cf_customer_ref': c.cf_customer_ref,
             'cf_co_broker': c.cf_co_broker,
@@ -231,33 +267,10 @@ def contract_detail(salesorder_id):
                            salesperson_employee=salesperson_employee)
 
 
-@app.route('/tasks')
-@login_required
-def tasks_view():
-    from sqlalchemy import func
-    task_counts = db.session.query(
-        Task.books_sales_order_id,
-        func.count(Task.id).label('total'),
-        func.sum(db.case((Task.status == 'pending', 1), else_=0)).label('pending')
-    ).group_by(Task.books_sales_order_id).all()
-
-    contract_map = {c.salesorder_id: c for c in Contract.query.all()}
-
-    task_list = []
-    for row in task_counts:
-        contract = contract_map.get(row.books_sales_order_id)
-        task_list.append({
-            'salesorder_id': row.books_sales_order_id,
-            'salesorder_number': contract.salesorder_number if contract else row.books_sales_order_id,
-            'location_name': contract.location_name if contract else '',
-            'total': row.total,
-            'pending': row.pending
-        })
-
-    task_list.sort(key=lambda x: x['pending'], reverse=True)
-    return render_template('tasks.html', task_list=task_list)
+# endregion
 
 
+# region Administrator/Security
 @app.route('/admin/audit')
 @login_required
 @admin_required
@@ -266,26 +279,168 @@ def audit_log_view():
     return render_template('admin_audit.html', logs=logs)
 
 
-# Submission/Api Call
+@app.before_request
+def audit_log():
+    if request.method != 'POST':
+        return
+    if not current_user.is_authenticated:
+        return
 
+    path = request.path
+    contract_paths = ['/contracts/', '/bulk_edit/']
+    if not any(path.startswith(p) for p in contract_paths):
+        return
+
+    parts = path.strip('/').split('/')
+    salesorder_id = parts[1] if len(parts) >= 2 and parts[0] == 'contracts' else None
+
+    log = AuditLog(
+        user=current_user.email,
+        method=request.method,
+        path=path,
+        salesorder_id=salesorder_id,
+        timestamp=datetime.now(timezone.utc)
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+@app.route('/admin/templates')
+@login_required
+@admin_required
+def admin_templates():
+    templates = TaskTemplate.query.order_by(TaskTemplate.country, TaskTemplate.order).all()
+    return render_template('admin_templates.html', templates=templates)
+
+
+@app.route('/admin/templates/create', methods=['POST'])
+@login_required
+@admin_required
+def create_template():
+    order = request.form.get('order', '').strip()
+    template = TaskTemplate(
+        country=request.form.get('country'),
+        order=int(order) if order else 0,
+        title=request.form.get('title'),
+        description=request.form.get('description'),
+        books_field=request.form.get('books_field')
+    )
+    db.session.add(template)
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
+@app.route('/admin/templates/<int:template_id>/update', methods=['POST'])
+@login_required
+@admin_required
+def update_template(template_id):
+    template = TaskTemplate.query.get(template_id)
+    if not template:
+        flash('Template not found.', 'danger')
+        return redirect('/admin/templates')
+    template.country = request.form.get('country')
+    template.order = int(request.form.get('order', 0))
+    template.title = request.form.get('title')
+    template.description = request.form.get('description')
+    template.books_field = request.form.get('books_field')
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
+@app.route('/admin/templates/<int:template_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_template(template_id):
+    template = TaskTemplate.query.get(template_id)
+    if not template:
+        flash('Template not found.', 'danger')
+        return redirect('/admin/templates')
+    db.session.delete(template)
+    db.session.commit()
+    return redirect('/admin/templates')
+
+
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.role, User.display_name).all()
+    return render_template('admin_users.html', users=users)
+
+
+@app.route('/admin/users/create', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_user():
+    email = request.form.get('email', '').strip().lower()
+    display_name = request.form.get('display_name', '').strip()
+    role = request.form.get('role', 'broker')
+    if not email:
+        flash('Email is required.', 'danger')
+        return redirect('/admin/users')
+    if User.query.filter_by(email=email).first():
+        flash(f'{email} already exists.', 'warning')
+        return redirect('/admin/users')
+    db.session.add(User(email=email, display_name=display_name, role=role))  # noqa
+    db.session.commit()
+    flash(f'User {email} added.', 'success')
+    return redirect('/admin/users')
+
+
+@app.route('/admin/users/<int:user_id>/role', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_user_role(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect('/admin/users')
+    new_role = request.form.get('role')
+    if new_role not in ('admin', 'broker'):
+        flash('Invalid role.', 'danger')
+        return redirect('/admin/users')
+    user.role = new_role
+    db.session.commit()
+    flash(f'{user.email} role updated to {new_role}.', 'success')
+    return redirect('/admin/users')
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect('/admin/users')
+    if user.id == current_user.id:
+        flash('Cannot delete your own account.', 'danger')
+        return redirect('/admin/users')
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'{user.email} removed.', 'success')
+    return redirect('/admin/users')
+
+
+# endregion
+
+
+# region Submission/Api Call
 @app.route('/submit_contract', methods=['POST'])
 @login_required
 def submit_contract_route():
     form_data = request.form.to_dict(flat=True)
 
-    # Resolve buyer ID → name for Books custom field
     buyer_id = form_data.get('buyer', '')
     buyer = Customer.query.get(buyer_id)
     form_data['buyer_name'] = buyer.customer_name if buyer else ''
 
-    # First broker → salesperson_employee_id, second → second_broker_employee_id
     broker_employees = request.form.getlist('broker_employee[]')
     broker_percentages = request.form.getlist('broker_percentage[]')
     form_data['salesperson_employee_id'] = broker_employees[0] if len(broker_employees) > 0 else ''
     form_data['second_broker_employee_id'] = broker_employees[1] if len(broker_employees) > 1 else ''
     form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
-    # Concatenate booking numbers into a comma-separated string for customer_notes
     booking_numbers = request.form.getlist('booking_number[]')
     form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
 
@@ -332,7 +487,7 @@ def submit_contract_route():
             method='POST',
             path='/submit_contract',
             salesorder_id=salesorder_id,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         db.session.add(log)
         db.session.commit()
@@ -350,17 +505,14 @@ def bulk_edit_save(salesorder_id):
     value = data.get('value')
 
     allowed_fields = {
-        # Zoho fields
         'quantity', 'commission_rate', 'seller_reference', 'shipping_date_end', 'contract_date',
         'uom', 'transportation', 'co_broker_name', 'vessel_name',
         'commodity_rate', 'co_brokerage_rate', 'delivery_notes', 'terms',
-        # Local-only fields
         'buyer_reference', 'in_network', 'packing',
     }
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
-    # Local-only fields — save to Contract and return early, no Zoho call
     if field in ('buyer_reference', 'in_network', 'packing'):
         meta = Contract.query.get(salesorder_id)
         if not meta:
@@ -379,7 +531,6 @@ def bulk_edit_save(salesorder_id):
     form_data = zoho.contract_to_form_data(contract)
     form_data[field] = value
 
-    # Preserve salesperson: look up the employee whose salesperson_id matches the contract's
     salesperson_zoho_id = contract.get('salesperson_id', '')
     if salesperson_zoho_id:
         matching_emp = Employee.query.filter_by(salesperson_id=salesperson_zoho_id).first()
@@ -387,8 +538,6 @@ def bulk_edit_save(salesorder_id):
     else:
         form_data['salesperson_employee_id'] = ''
 
-
-    # Rebuild booking numbers from local Shipment table so cf_custom_customer_notes is preserved
     local_shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
     form_data['booking_numbers_concat'] = ','.join(s.booking_number for s in local_shipments if s.booking_number)
 
@@ -462,75 +611,28 @@ def update_contract(salesorder_id):
         return redirect(request.referrer or '/contracts')
 
 
-# Security related
-
-@app.before_request
-def audit_log():
-    if request.method != 'POST':
-        return
-    if not current_user.is_authenticated:
-        return
-
-    # Only log contract-related actions
-    path = request.path
-    contract_paths = ['/contracts/', '/bulk_edit/']
-    if not any(path.startswith(p) for p in contract_paths):
-        return
-
-    # Try to extract salesorder ID from path
-    parts = path.strip('/').split('/')
-    salesorder_id = parts[1] if len(parts) >= 2 and parts[0] == 'contracts' else None
-
-    log = AuditLog(
-        user=current_user.email,
-        method=request.method,
-        path=path,
-        salesorder_id=salesorder_id,
-        timestamp=datetime.utcnow()
-    )
-    db.session.add(log)
-    db.session.commit()
+# endregion
 
 
-# User auth and login routes
-
-
+# region User auth and login routes
 @app.route('/login')
 def login():
-    """Kick off Azure AD OAuth flow."""
-    import secrets
     from core.auth import build_auth_url
-    state = secrets.token_urlsafe(16)
-    session['oauth_state'] = state
-    return redirect(build_auth_url(state))
+    return redirect(build_auth_url())
 
 
 @app.route('/auth/callback')
 def auth_callback():
-    """Handle the OAuth callback from Azure AD."""
     from core.auth import acquire_token_by_code
 
-    # If the user is already logged in, this is a duplicate callback
-    # (browser prefetch, retry, etc). Don't run the flow again.
     if current_user.is_authenticated:
         return redirect('/')
 
-    # CSRF check
-    if request.args.get('state') != session.pop('oauth_state', None):
-        flash('Authentication state mismatch. Please try again.', 'danger')
-        return redirect('/login')
-
-    # Azure AD error (e.g. user cancelled)
     if 'error' in request.args:
         flash(f"Sign-in failed: {request.args.get('error_description', request.args.get('error'))}", 'danger')
         return redirect('/login')
 
-    code = request.args.get('code')
-    if not code:
-        flash('No authorization code returned.', 'danger')
-        return redirect('/login')
-
-    result = acquire_token_by_code(code)
+    result = acquire_token_by_code(request.args)
     if 'error' in result:
         flash(f"Token exchange failed: {result.get('error_description', result.get('error'))}", 'danger')
         return redirect('/login')
@@ -541,13 +643,11 @@ def auth_callback():
         flash('Microsoft account did not return an email.', 'danger')
         return redirect('/login')
 
-    # Local gatekeeping: account must be pre-provisioned in Quern.
     user = User.query.filter_by(email=email).first()
     if not user:
         flash(f'{email} is not authorized for Quern. Contact an admin.', 'danger')
         return redirect('/login')
 
-    # Optionally backfill display_name from the token on first login
     if not user.display_name and claims.get('name'):
         user.display_name = claims.get('name')
         db.session.commit()
@@ -574,65 +674,10 @@ def logged_out():
     return render_template('logged_out.html')
 
 
-# Admin task template creation.
-
-@app.route('/admin/templates')
-@login_required
-@admin_required
-def admin_templates():
-    templates = TaskTemplate.query.order_by(TaskTemplate.country, TaskTemplate.order).all()
-    return render_template('admin_templates.html', templates=templates)
+# endregion
 
 
-@app.route('/admin/templates/create', methods=['POST'])
-@login_required
-@admin_required
-def create_template():
-    order = request.form.get('order', '').strip()
-    template = TaskTemplate(
-        country=request.form.get('country'),
-        order=int(order) if order else 0,
-        title=request.form.get('title'),
-        description=request.form.get('description'),
-        books_field=request.form.get('books_field')
-    )
-    db.session.add(template)
-    db.session.commit()
-    return redirect('/admin/templates')
-
-
-@app.route('/admin/templates/<int:template_id>/update', methods=['POST'])
-@login_required
-@admin_required
-def update_template(template_id):
-    template = TaskTemplate.query.get(template_id)
-    if not template:
-        flash('Template not found.', 'danger')
-        return redirect('/admin/templates')
-    template.country = request.form.get('country')
-    template.order = int(request.form.get('order', 0))
-    template.title = request.form.get('title')
-    template.description = request.form.get('description')
-    template.books_field = request.form.get('books_field')
-    db.session.commit()
-    return redirect('/admin/templates')
-
-
-@app.route('/admin/templates/<int:template_id>/delete', methods=['POST'])
-@login_required
-@admin_required
-def delete_template(template_id):
-    template = TaskTemplate.query.get(template_id)
-    if not template:
-        flash('Template not found.', 'danger')
-        return redirect('/admin/templates')
-    db.session.delete(template)
-    db.session.commit()
-    return redirect('/admin/templates')
-
-
-# Sub-screens like submission success
-
+# region Sub-screens like submission success
 @app.route('/submit_success/<salesorder_id>')
 @login_required
 def submit_success(salesorder_id):
@@ -640,8 +685,10 @@ def submit_success(salesorder_id):
     return render_template('submit_success.html', salesorder_id=salesorder_id, salesorder_number=salesorder_number)
 
 
-# Sub-processes like confirming tasks or seeding tasks, these are app sided
+# endregion
 
+
+# region Sub-processes like confirming tasks or seeding tasks
 @app.route('/seed_tasks')
 def seed_tasks():
     if TaskTemplate.query.first():
@@ -675,7 +722,7 @@ def confirm_task(task_id):
     if value == 'yes':
         task.status = 'complete'
         task.completed_value = value
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(timezone.utc)
     else:
         task.status = 'pending'
         task.completed_value = None
@@ -684,8 +731,10 @@ def confirm_task(task_id):
     return {'ok': True}
 
 
-# Dev page stuff
+# endregion
 
+
+# region Dev page stuff
 @app.route('/debug/contracts_list')
 @login_required
 def debug_contracts_list():
@@ -735,6 +784,7 @@ def init_db():
     create_user()
     return {'result': 'DB initialized. Now hit /init/items, /init/customers, /init/employees in order.'}
 
+
 @app.route('/init/items')
 @login_required
 @admin_required
@@ -742,12 +792,14 @@ def init_items():
     sync_items()
     return {'result': 'Items synced.'}
 
+
 @app.route('/init/customers')
 @login_required
 @admin_required
 def init_customers():
     sync_customers()
     return {'result': 'Customers synced.'}
+
 
 @app.route('/init/employees')
 @login_required
@@ -771,7 +823,7 @@ def init_customers_page():
 @admin_required
 def init_contracts_page():
     page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', None, type=int)
+    limit = request.args.get('limit', None, type=int)  # noqa
     result = sync_contracts_page(page, limit=limit)
     return {'has_more': result['has_more'], 'count': result['count'], 'page': page}
 
@@ -846,8 +898,10 @@ def debug_locations():
     return {'locations': zoho.get_locations()}
 
 
-# Local contract data
+# endregion
 
+
+# region Local contract data
 @app.route('/contracts/<salesorder_id>/shipments/add', methods=['POST'])
 @login_required
 def add_shipment(salesorder_id):
@@ -937,17 +991,18 @@ def delete_note(note_id):
     return redirect(f'/contracts/{salesorder_id}#notes')
 
 
-
-# Dashboard
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    orders = Contract.query.order_by(Contract.date.desc()).all()
-    return render_template('dashboard.html', contracts=orders)
+# endregion
 
 
-# Functions
+# region Functions
+def first_time_startup():
+    wipe_tasks()
+    seed_tasks()
+    sync_items()
+    sync_customers()
+    sync_employees()
+    create_user()
+
 
 def _build_contract_data(salesorder_id):
     """Shared data-assembly for PDF and DOCX contract downloads."""
@@ -955,7 +1010,7 @@ def _build_contract_data(salesorder_id):
     if not c:
         return None, {}
 
-    customers = {cu.customer_id: cu.customer_name for cu in Customer.query.all()}
+    customers = {cu.customer_id: cu.customer_name for cu in Customer.query.all()}  # noqa
     items = {i.item_id: i for i in Item.query.all()}
 
     commodity_item = items.get(c.item_id or '')
@@ -979,106 +1034,7 @@ def _build_contract_data(salesorder_id):
     }
 
 
-def first_time_startup():
-    wipe_tasks()
-    seed_tasks()
-    sync_items()
-    sync_customers()
-    sync_employees()
-    create_user()
-
-
-@app.route('/admin/users')
-@login_required
-@admin_required
-def admin_users():
-    users = User.query.order_by(User.role, User.display_name).all()
-    return render_template('admin_users.html', users=users)
-
-
-@app.route('/admin/users/create', methods=['POST'])
-@login_required
-@admin_required
-def admin_create_user():
-    email = request.form.get('email', '').strip().lower()
-    display_name = request.form.get('display_name', '').strip()
-    role = request.form.get('role', 'broker')
-    if not email:
-        flash('Email is required.', 'danger')
-        return redirect('/admin/users')
-    if User.query.filter_by(email=email).first():
-        flash(f'{email} already exists.', 'warning')
-        return redirect('/admin/users')
-    db.session.add(User(email=email, display_name=display_name, role=role))
-    db.session.commit()
-    flash(f'User {email} added.', 'success')
-    return redirect('/admin/users')
-
-
-@app.route('/admin/users/<int:user_id>/role', methods=['POST'])
-@login_required
-@admin_required
-def admin_update_user_role(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        flash('User not found.', 'danger')
-        return redirect('/admin/users')
-    new_role = request.form.get('role')
-    if new_role not in ('admin', 'broker'):
-        flash('Invalid role.', 'danger')
-        return redirect('/admin/users')
-    user.role = new_role
-    db.session.commit()
-    flash(f'{user.email} role updated to {new_role}.', 'success')
-    return redirect('/admin/users')
-
-
-@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
-@login_required
-@admin_required
-def admin_delete_user(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        flash('User not found.', 'danger')
-        return redirect('/admin/users')
-    if user.id == current_user.id:
-        flash('Cannot delete your own account.', 'danger')
-        return redirect('/admin/users')
-    db.session.delete(user)
-    db.session.commit()
-    flash(f'{user.email} removed.', 'success')
-    return redirect('/admin/users')
-
-
-def create_user():
-    seed_users = [
-        ('rye@mcdonaldpelz.com', 'Rye Pankoski', 'admin'),
-        ('julia@mcdonaldpelz.com', 'Julia', 'admin'),
-        ('enrique@mcdonaldpelz.com', 'Enrique', 'broker'),
-    ]
-    for email, display_name, role in seed_users:
-        if not User.query.filter_by(email=email).first():
-            db.session.add(User(email=email, display_name=display_name, role=role))
-    db.session.commit()
-    return 'Users seeded.'
-
-
-def wipe_tasks():
-    Task.query.delete()
-    db.session.commit()
-    return "All tasks wiped."
-
-
-def wipe_audit():
-    AuditLog.query.delete()
-    db.session.commit()
-    return 'All audit logs wiped.'
-
-
-def wipe_users():
-    User.query.delete()
-    db.session.commit()
-    return 'All users wiped.'
+# endregion
 
 
 if __name__ == '__main__':

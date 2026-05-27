@@ -27,20 +27,20 @@ def sync_customers():
 
 def sync_customers_page(page):
     """Sync one page of customers. Returns has_more boolean."""
-    token = get_access_token()
-    response = requests.get(
+    access_token = get_access_token()
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/contacts",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID, "contact_type": "customer", "per_page": 10, "page": page}
     )
-    data = response.json()
+    data = api_response.json()
     contacts = data.get('contacts', [])
 
     for contact in contacts:
         is_active = contact.get('status') != 'inactive'
         detail_response = requests.get(
             f"https://www.zohoapis.com/books/v3/contacts/{contact['contact_id']}",
-            headers={"Authorization": f"Zoho-oauthtoken {token}"},
+            headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
             params={"organization_id": ORG_ID}
         )
         detail_data = detail_response.json()
@@ -79,13 +79,13 @@ def sync_customers_page(page):
 
 def sync_contracts_page(page, limit=None):
     """Sync one page of contracts with full detail. Returns has_more and synced count."""
-    token = get_access_token()
-    response = requests.get(
+    access_token = get_access_token()
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/salesorders",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID, "per_page": 10, "page": page}
     )
-    data = response.json()
+    data = api_response.json()
     orders = data.get('salesorders', [])
 
     if limit is not None:
@@ -102,13 +102,13 @@ def sync_contracts_page(page, limit=None):
 
 
 def sync_employees():
-    token = get_access_token()
-    response = requests.get(
+    access_token = get_access_token()
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/cm_employees",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID, "per_page": 200}
     )
-    employees = response.json().get('module_records', [])
+    employees = api_response.json().get('module_records', [])
 
     for e in employees:
         office_val = e.get('cf_office_formatted') or e.get('cf_office') or ''
@@ -170,20 +170,19 @@ def sync_items():
             db.session.add(new_item)
     db.session.commit()
 
-
 # Getters
 
 def get_items():
-    coin = get_access_token()
+    access_token = get_access_token()
     items = []
     page = 1
     while True:
-        response = requests.get(
+        api_response = requests.get(
             "https://www.zohoapis.com/books/v3/items",
-            headers={"Authorization": f"Zoho-oauthtoken {coin}"},
+            headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
             params={"organization_id": ORG_ID, "per_page": 200, "page": page}
         )
-        data = response.json()
+        data = api_response.json()
         page_items = data.get('items', [])
         items.extend(page_items)
         if not data.get('page_context', {}).get('has_more_page', False):
@@ -216,20 +215,20 @@ def get_items():
 
 
 def get_sales_order(salesorder_id):
-    token = get_access_token()
-    response = requests.get(
+    access_token = get_access_token()
+    api_response = requests.get(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID}
     )
-    return response.json().get('salesorder', {})
+    return api_response.json().get('salesorder', {})
 
 
 def get_access_token():
     if _token_cache["access_token"] and time.time() < _token_cache["expires_at"]:
         return _token_cache["access_token"]
 
-    response = requests.post(
+    api_response = requests.post(
         "https://accounts.zoho.com/oauth/v2/token",
         params={
             "grant_type": "refresh_token",
@@ -240,7 +239,7 @@ def get_access_token():
     )
 
     try:
-        data = response.json()
+        data = api_response.json()
     except Exception:
         raise RuntimeError("Failed to parse token response from Zoho")
 
@@ -248,29 +247,29 @@ def get_access_token():
         raise RuntimeError(f"Failed to get access token: {data}")
 
     _token_cache["access_token"] = data["access_token"]
-    _token_cache["expires_at"] = time.time() + 3500
+    _token_cache["expires_at"] = time.time() + 3500 # noqa
 
     return data["access_token"]
 
 
 def get_sales_orders(page=1):
     coin = get_access_token()
-    response = requests.get(
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/salesorders",
         headers={"Authorization": f"Zoho-oauthtoken {coin}"},
         params={"organization_id": ORG_ID, "per_page": 200, "page": page}
     )
-    return response.json().get('salesorders', [])
+    return api_response.json().get('salesorders', [])
 
 
 def get_next_test_number():
-    token = get_access_token()
-    response = requests.get(
+    access_token = get_access_token()
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/salesorders",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID, "per_page": 200}
     )
-    orders = response.json().get('salesorders', [])
+    orders = api_response.json().get('salesorders', [])
     test_numbers = [
         o['salesorder_number'] for o in orders
         if o['salesorder_number'].startswith('TEST-')
@@ -281,14 +280,14 @@ def get_next_test_number():
     for n in test_numbers:
         try:
             numbers.append(int(n.split('-')[1]))
-        except:
+        except (ValueError, IndexError):
             pass
     next_num = max(numbers) + 1 if numbers else 1
     return f'TEST-{next_num:03d}'
 
 
 def debug_reporting_tags():
-    token = get_access_token()
+    token = get_access_token() # noqa
     orders = get_sales_orders(page=1)
     result = []
     for order in orders[:10]:
@@ -323,8 +322,6 @@ def get_locations():
 
 def submit_contract(form_data):
     coin = get_access_token()
-
-    booking_numbers = form_data.get('booking_numbers_concat', '')
 
     from core.models import Employee
     second_broker_name = ''
@@ -383,21 +380,19 @@ def submit_contract(form_data):
     if salesperson_name:
         payload["salesperson_name"] = salesperson_name
 
-    response = requests.post(
+    api_response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
         headers={"Authorization": f"Zoho-oauthtoken {coin}"},
         params={"organization_id": ORG_ID},
         json=payload
     )
 
-    print(response.json())
-    return response.json()
+    print(api_response.json())
+    return api_response.json()
 
 
 def update_contract(salesorder_id, form_data):
-    token = get_access_token()
-
-    booking_numbers = form_data.get('booking_numbers_concat', '')
+    access_token = get_access_token()
 
     from core.models import Employee
     second_broker_name = ''
@@ -455,15 +450,15 @@ def update_contract(salesorder_id, form_data):
     if salesperson_name:
         payload["salesperson_name"] = salesperson_name
 
-    response = requests.put(
+    api_response = requests.put(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params={"organization_id": ORG_ID},
         json=payload
     )
 
-    print(response.json())
-    return response.json()
+    print(api_response.json())
+    return api_response.json()
 
 
 def upsert_contract_from_zoho(detail):
@@ -536,7 +531,7 @@ def incremental_sync_page(page):
     else:
         last_sync = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%S+0000')
 
-    token = get_access_token()
+    access_token = get_access_token()
     params = {
         "organization_id": ORG_ID,
         "per_page": 10,
@@ -544,12 +539,12 @@ def incremental_sync_page(page):
         "last_modified_time": last_sync
     }
 
-    response = requests.get(
+    api_response = requests.get(
         "https://www.zohoapis.com/books/v3/salesorders",
-        headers={"Authorization": f"Zoho-oauthtoken {token}"},
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
         params=params
     )
-    data = response.json()
+    data = api_response.json()
     orders = data.get('salesorders', [])
 
     for order in orders:
@@ -564,7 +559,7 @@ def incremental_sync_page(page):
         now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+0000')
         if state:
             state.value = now
-            state.updated_at = datetime.utcnow()
+            state.updated_at = datetime.now(timezone.utc)
         else:
             db.session.add(SyncState(key='last_incremental_sync', value=now))
         db.session.commit()
@@ -605,7 +600,7 @@ def contract_to_form_data(contract):
 
 
 def contract_to_form_data_local(contract):
-    """Convert a local Contract model instance to a flat form_data dict for prefill."""
+    """Convert a local Contract model instance to a flat form_data dict for prefilling."""
     buyer_id = contract.cf_buyer_id
     if not buyer_id and contract.cf_buyer:
         buyer_customer = Customer.query.filter_by(customer_name=contract.cf_buyer).first()

@@ -165,7 +165,7 @@ def generate_contract_docx(data, logo_path):
     Requires python-docx (add to requirements.txt: python-docx>=1.1.0).
     """
     from docx import Document
-    from docx.shared import Pt, Inches, RGBColor
+    from docx.shared import Pt, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     doc = Document()
@@ -181,8 +181,8 @@ def generate_contract_docx(data, logo_path):
     try:
         doc.add_picture(logo_path, width=Inches(7.0))
         doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception:
-        pass  # Logo missing — skip rather than crash
+    except (FileNotFoundError, OSError):
+        pass  # Logo missing
 
     # Address block
     addr = doc.add_paragraph()

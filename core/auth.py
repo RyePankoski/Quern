@@ -5,7 +5,7 @@ the user must exist in Quern's local users table (by email) to be allowed in.
 """
 import os
 import msal
-from flask import url_for, session, request
+from flask import url_for, session
 
 CLIENT_ID = os.getenv('AZURE_CLIENT_ID')
 CLIENT_SECRET = os.getenv('AZURE_CLIENT_SECRET')
@@ -24,25 +24,22 @@ def _build_msal_app():
 
 
 def _redirect_uri():
-    # Prefer explicit env var (matches what's registered in Entra exactly),
-    # fall back to computing from request as a safety net.
     return os.getenv('AZURE_REDIRECT_URI') or url_for('auth_callback', _external=True)
 
 
-def build_auth_url(state):
+def build_auth_url():
     app = _build_msal_app()
-    return app.get_authorization_request_url(
+    flow = app.initiate_auth_code_flow(
         SCOPES,
-        state=state,
         redirect_uri=_redirect_uri(),
     )
+    session['auth_flow'] = flow
+    return flow['auth_uri']
 
 
-def acquire_token_by_code(code):
-    """Exchange auth code for tokens. Returns the full result dict from MSAL."""
+def acquire_token_by_code(request_args):
     app = _build_msal_app()
-    return app.acquire_token_by_authorization_code(
-        code,
-        scopes=SCOPES,
-        redirect_uri=_redirect_uri(),
+    return app.acquire_token_by_auth_code_flow(
+        session.pop('auth_flow', {}),
+        request_args,
     )
