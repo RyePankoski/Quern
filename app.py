@@ -3,6 +3,7 @@ from datetime import datetime
 
 from flask import Flask, render_template, request, redirect, flash, send_file, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_migrate import Migrate
 
 from core import zoho
 from core.models import db, Customer, Item, Employee, Task, TaskTemplate, User, AuditLog, Contract, Shipment, \
@@ -17,6 +18,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///que
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
 db.init_app(app)
+migrate = Migrate(app, db, render_as_batch=True)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -158,7 +160,7 @@ def bulk_edit():
 @login_required
 def contracts():
     contracts = Contract.query.order_by(Contract.date.desc()).all()
-    return render_template('contracts.html', contracts=contracts, page=1)
+    return render_template('contracts.html', contracts=contracts)
 
 
 @app.route('/contracts/<salesorder_id>')
@@ -682,16 +684,6 @@ def confirm_task(task_id):
     return {'ok': True}
 
 
-# Resource creation, like the contracts JSON
-
-
-@app.route('/api/contracts')
-@login_required
-def contracts_json():
-    # Load more is no longer needed — all contracts are local
-    return {'contracts': [], 'page': 1}
-
-
 # Dev page stuff
 
 @app.route('/debug/contracts_list')
@@ -733,8 +725,9 @@ def dev_panel():
     return render_template('dev.html')
 
 
-# TEMPORARY - remove after first deployment
 @app.route('/init')
+@login_required
+@admin_required
 def init_db():
     db.create_all()
     wipe_tasks()
@@ -743,22 +736,30 @@ def init_db():
     return {'result': 'DB initialized. Now hit /init/items, /init/customers, /init/employees in order.'}
 
 @app.route('/init/items')
+@login_required
+@admin_required
 def init_items():
     sync_items()
     return {'result': 'Items synced.'}
 
 @app.route('/init/customers')
+@login_required
+@admin_required
 def init_customers():
     sync_customers()
     return {'result': 'Customers synced.'}
 
 @app.route('/init/employees')
+@login_required
+@admin_required
 def init_employees():
     sync_employees()
     return {'result': 'Employees synced.'}
 
 
 @app.route('/init/customers/page')
+@login_required
+@admin_required
 def init_customers_page():
     page = request.args.get('page', 1, type=int)
     result = sync_customers_page(page)
@@ -766,6 +767,8 @@ def init_customers_page():
 
 
 @app.route('/init/contracts/page')
+@login_required
+@admin_required
 def init_contracts_page():
     page = request.args.get('page', 1, type=int)
     limit = request.args.get('limit', None, type=int)
@@ -845,40 +848,6 @@ def debug_locations():
 
 # Local contract data
 
-@app.route('/contracts/<salesorder_id>/meta', methods=['POST'])
-@login_required
-def save_contract_meta(salesorder_id):
-    meta = Contract.query.get(salesorder_id)
-    if not meta:
-        meta = Contract(salesorder_id=salesorder_id)
-        db.session.add(meta)
-
-    in_network_val = request.form.get('in_network')
-    if in_network_val == 'true':
-        meta.in_network = True
-    elif in_network_val == 'false':
-        meta.in_network = False
-    else:
-        meta.in_network = None
-
-    # Wipe and replace shipments
-    Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
-    booking_numbers = request.form.getlist('booking_number[]')
-    shipment_quantities = request.form.getlist('shipment_quantity[]')
-    for booking, qty in zip(booking_numbers, shipment_quantities):
-        if booking:
-            qty_val = float(qty) if qty else None
-            shipment = Shipment(
-                books_sales_order_id=salesorder_id,
-                booking_number=booking,
-                quantity=qty_val
-            )
-            db.session.add(shipment)
-
-    db.session.commit()
-    return redirect(request.referrer or f'/contracts/{salesorder_id}')
-
-
 @app.route('/contracts/<salesorder_id>/shipments/add', methods=['POST'])
 @login_required
 def add_shipment(salesorder_id):
@@ -909,13 +878,16 @@ def delete_shipment(shipment_id):
 @login_required
 def contract_pdf(salesorder_id):
     contract, data = _build_contract_data(salesorder_id)
+    if not contract:
+        flash('Contract not found.', 'danger')
+        return redirect('/contracts')
     logo_path = os.path.join(app.root_path, 'static', 'img', 'logo_header.jpeg')
     buffer = generate_contract_pdf(data, logo_path)
     return send_file(
         buffer,
         mimetype='application/pdf',
         as_attachment=True,
-        download_name=f"{contract.get('salesorder_number', 'contract')}.pdf"
+        download_name=f"{contract.salesorder_number or 'contract'}.pdf"
     )
 
 
@@ -923,13 +895,16 @@ def contract_pdf(salesorder_id):
 @login_required
 def contract_docx(salesorder_id):
     contract, data = _build_contract_data(salesorder_id)
+    if not contract:
+        flash('Contract not found.', 'danger')
+        return redirect('/contracts')
     logo_path = os.path.join(app.root_path, 'static', 'img', 'logo_header.jpeg')
     buffer = generate_contract_docx(data, logo_path)
     return send_file(
         buffer,
         mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         as_attachment=True,
-        download_name=f"{contract.get('salesorder_number', 'contract')}.docx"
+        download_name=f"{contract.salesorder_number or 'contract'}.docx"
     )
 
 
@@ -969,52 +944,34 @@ def delete_note(note_id):
 @login_required
 def dashboard():
     orders = Contract.query.order_by(Contract.date.desc()).all()
-
-    total = sum((o.cf_item_contract_price or 0) for o in orders)
-
-    by_month = {}
-    by_office = {}
-    for o in orders:
-        month = o.date[:7] if o.date else 'Unknown'
-        office = o.location_name or 'Unknown'
-
-        by_month.setdefault(month, {'count': 0, 'total': 0})
-        by_month[month]['count'] += 1
-        by_month[month]['total'] += o.cf_item_contract_price or 0
-
-        by_office.setdefault(office, {'count': 0, 'total': 0})
-        by_office[office]['count'] += 1
-        by_office[office]['total'] += o.cf_item_contract_price or 0
-
-    by_month = dict(sorted(by_month.items(), reverse=True))
-    by_office = dict(sorted(by_office.items()))
-
-    return render_template('dashboard.html', contracts=orders, total=total, by_month=by_month, by_office=by_office)
+    return render_template('dashboard.html', contracts=orders)
 
 
 # Functions
 
 def _build_contract_data(salesorder_id):
     """Shared data-assembly for PDF and DOCX contract downloads."""
-    contract = zoho.get_sales_order(salesorder_id)
-    form_data = zoho.contract_to_form_data(contract)
-    customers = {c.customer_id: c.customer_name for c in Customer.query.all()}
+    c = Contract.query.get(salesorder_id)
+    if not c:
+        return None, {}
+
+    customers = {cu.customer_id: cu.customer_name for cu in Customer.query.all()}
     items = {i.item_id: i for i in Item.query.all()}
 
-    commodity_item = items.get(form_data.get('commodity', ''))
+    commodity_item = items.get(c.item_id or '')
     origin = commodity_item.origin if commodity_item and commodity_item.origin else ''
 
-    return contract, {
-        'date': contract.get('date', ''),
-        'contract_number': contract.get('salesorder_number', ''),
-        'seller': customers.get(form_data['seller'], ''),
-        'buyer': customers.get(form_data['buyer'], ''),
-        'quantity': form_data['quantity'],
-        'uom': form_data['uom'],
-        'shipment': form_data['shipping_date'],
-        'price': form_data['commodity_rate'],
-        'other_conditions': form_data['delivery_notes'],
-        'broker': contract.get('salesperson_name', ''),
+    return c, {
+        'date': c.date or '',
+        'contract_number': c.salesorder_number or '',
+        'seller': c.customer_name or '',
+        'buyer': c.cf_buyer or '',
+        'quantity': c.quantity,
+        'uom': c.cf_uom or '',
+        'shipment': c.shipment_date or '',
+        'price': c.cf_item_contract_price,
+        'other_conditions': c.notes or '',
+        'broker': c.salesperson_name or '',
         'origin': origin,
         'quality': '', 'grades': '', 'weights': '', 'governing_contract': '',
         'discount': '', 'moisture': '', 'damage': '', 'heat_damage': '',

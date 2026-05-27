@@ -89,9 +89,11 @@
             <a href="/employees" class="btn btn-outline-secondary w-100 py-3">Employees</a>
         </div>
 
+        {% if current_user.is_admin %}
         <div class="col-6">
             <a href="/admin/templates" class="btn w-100 py-3" style="border-color:#c8961a; color:#c8961a;">Templates</a>
         </div>
+        {% endif %}
 
     </div>
 
