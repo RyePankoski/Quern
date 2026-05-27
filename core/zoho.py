@@ -727,16 +727,17 @@ def upsert_contract_from_zoho(detail):
 def incremental_sync():
     """Sync contracts modified since last sync. Updates SyncState with timestamp."""
     from core.models import SyncState
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
 
-    # Get last sync time
+    # Get last sync time — default to 24 hours ago on first run
     state = SyncState.query.filter_by(key='last_incremental_sync').first()
-    last_sync = state.value if state else None
+    if state:
+        last_sync = state.value
+    else:
+        last_sync = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%S+0000')
 
     token = get_access_token()
-    params = {"organization_id": ORG_ID, "per_page": 200, "page": 1}
-    if last_sync:
-        params["last_modified_time"] = last_sync
+    params = {"organization_id": ORG_ID, "per_page": 200, "page": 1, "last_modified_time": last_sync}
 
     synced = 0
     while True:
