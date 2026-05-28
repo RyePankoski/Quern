@@ -85,7 +85,7 @@ class Task(db.Model):
     status = db.Column(db.String(20), default='pending')
     completed_value = db.Column(db.String(500))
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
 
     template = db.relationship('TaskTemplate', backref='tasks')
     employee = db.relationship('Employee', backref='tasks')
@@ -159,7 +159,7 @@ class Shipment(db.Model):
     vessel_name = db.Column(db.String(200), nullable=True)
     booking_number = db.Column(db.String(200), nullable=True)
     quantity = db.Column(db.Float, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
 
 
 class ContractNote(db.Model):
@@ -168,7 +168,7 @@ class ContractNote(db.Model):
     books_sales_order_id = db.Column(db.String(100), nullable=False)
     author = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
 
 
 class BrokerCommission(db.Model):
@@ -178,11 +178,11 @@ class BrokerCommission(db.Model):
     employee_id = db.Column(db.String(100), nullable=False)
     percentage = db.Column(db.Float, nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
 
 
 class SyncState(db.Model):
     __tablename__ = 'sync_state'
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.String(200), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
