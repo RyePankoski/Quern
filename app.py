@@ -27,6 +27,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
 def admin_required(f):
     from functools import wraps
     @wraps(f)
@@ -211,6 +212,7 @@ def contract_detail(salesorder_id):
         'salesorder_id': c.salesorder_id,
         'salesorder_number': c.salesorder_number,
         'status': c.status,
+        'is_declined': c.is_declined,
         'date': c.date,
         'shipment_date': c.shipment_date,
         'customer_id': c.customer_id,
@@ -631,7 +633,10 @@ def auth_callback():
         flash(f"Sign-in failed: {request.args.get('error_description', request.args.get('error'))}", 'danger')
         return redirect('/login')
 
-    result = acquire_token_by_code(request.args)
+    try:
+        result = acquire_token_by_code(request.args)
+    except ValueError:
+        return redirect('/login')
     if 'error' in result:
         flash(f"Token exchange failed: {result.get('error_description', result.get('error'))}", 'danger')
         return redirect('/login')
@@ -906,6 +911,18 @@ def debug_locations():
 
 
 # region Local contract data
+
+@app.route('/contracts/<salesorder_id>/decline', methods=['POST'])
+@login_required
+def toggle_decline(salesorder_id):
+    c = Contract.query.get(salesorder_id)
+    if not c:
+        return {'ok': False, 'error': 'Contract not found'}, 404
+    c.is_declined = not bool(c.is_declined)
+    db.session.commit()
+    return {'ok': True, 'is_declined': c.is_declined}
+
+
 @app.route('/contracts/<salesorder_id>/shipments/add', methods=['POST'])
 @login_required
 def add_shipment(salesorder_id):
