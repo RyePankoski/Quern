@@ -12,7 +12,7 @@
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <h2 class="fw-semibold mb-0">All Contracts</h2>
         <div class="d-flex gap-2">
-            <button onclick="exportToExcel()" class="btn btn-outline-secondary">Export to Excel</button>
+            <a href="/contracts/export" class="btn btn-outline-secondary">Export to Excel</a>
             <a href="/bulk_edit" class="btn btn-outline-secondary">Bulk Edit</a>
         </div>
     </div>
@@ -203,34 +203,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-    function exportToExcel() {
-        const rows = [['Contract #', 'Buyer', 'Buyer Ref #', 'Seller', 'Seller Ref #', 'Commodity', 'Status', 'Date']];
 
-        document.querySelectorAll('#contracts-tbody tr').forEach(row => {
-            if (row.style.display === 'none') return;
-            const cells = row.querySelectorAll('td');
-            if (cells.length < 9) return;
-            rows.push([
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim(),
-                cells[7].textContent.trim(),
-                cells[8].textContent.trim(),
-            ]);
-        });
-
-        const ws = XLSX.utils.aoa_to_sheet(rows);
-        ws['!cols'] = [20, 30, 20, 30, 20, 25, 15, 15].map(w => ({ wch: w }));
-
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
-
-        const date = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(wb, `contracts_${date}.xlsx`);
-    }
 </script>
 
 {% endblock %}

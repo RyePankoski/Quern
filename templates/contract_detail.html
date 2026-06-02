@@ -252,8 +252,8 @@
                     </div>
                 </div>
                 <label class="form-label fw-semibold">Broker Commission</label>
-                <div id="broker-validation" style="display:none; color:#8b0000; font-size:0.85rem; margin-bottom:0.5rem;">
-                    Percentages must add up to 100%
+                <div id="broker-validation" style="display:none; color:#b8860b; font-size:0.85rem; margin-bottom:0.5rem;">
+                    ⚠ Broker percentages do not add up to 100% — you can still save.
                 </div>
                 <table class="table table-bordered table-sm">
                     <thead class="table-dark">
@@ -531,11 +531,13 @@
         const rows = document.querySelectorAll('#broker-commission-body tr');
         if (rows.length > 0) {
             const total = getBrokerTotal();
+            const validationEl = document.getElementById('broker-validation');
             if (Math.abs(total - 100) > 0.01) {
-                e.preventDefault();
-                this.dataset.blockOverlay = '1';
-                document.getElementById('broker-validation').style.display = 'block';
-                document.getElementById('broker-validation').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                validationEl.style.display = 'block';
+                validationEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Warn but do not block — allow save to proceed
+            } else {
+                validationEl.style.display = 'none';
             }
         }
     });
@@ -675,18 +677,88 @@
     function exitWalkthrough() {
         walkthroughActive = false;
         document.getElementById('task-overlay').style.display = 'none';
-        document.getElementById('task-box').style.display = 'none';
+        const box = document.getElementById('task-box');
+        box.style.display = 'none';
+        box.style.width = '280px';
         document.body.style.overflow = '';
     }
 
-    function enterWalkthrough() {
+    function enterWalkthrough(startIndex) {
         document.body.style.overflow = 'hidden';
         walkthroughActive = true;
-        showTask(0);
+        const box = document.getElementById('task-box');
+        box.style.width = '280px';
+        box.style.transform = '';
+        showTask(startIndex);
+    }
+
+    // ── Task List Panel ───────────────────────────────────────────────────────
+
+    function openTaskList() {
+        const overlay = document.getElementById('task-overlay');
+        const box = document.getElementById('task-box');
+        overlay.style.display = 'block';
+        overlay.style.background = 'rgba(14,14,12,0.85)';
+        document.body.style.overflow = 'hidden';
+
+        const allIds = Object.keys(taskData);
+        const pendingIds = allIds.filter(id => taskData[id].status === 'pending');
+
+        const rows = allIds.map((id) => {
+            const t = taskData[id];
+            const isPending = t.status === 'pending';
+            const pendingIndex = pendingIds.indexOf(id);
+            return `
+                <div class="d-flex justify-content-between align-items-center py-2"
+                     style="border-bottom:1px solid #3a3a38;">
+                    <div>
+                        <span style="color:${isPending ? '#d3d1c7' : '#888780'}; font-weight:${isPending ? '500' : '400'};">
+                            ${t.title}
+                        </span>
+                        ${isPending
+                            ? '<span class="badge ms-2" style="background:#4f7a1a; font-size:0.7rem;">pending</span>'
+                            : '<span class="badge ms-2" style="background:#2c2c2a; color:#888780; font-size:0.7rem;">done</span>'}
+                    </div>
+                    ${isPending
+                        ? `<button class="btn btn-sm btn-success" onclick="enterWalkthrough(${pendingIndex})">Start</button>`
+                        : '<span style="color:#888780; font-size:0.85rem;">✓</span>'}
+                </div>
+            `;
+        }).join('');
+
+        box.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p style="color:#888780; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin:0;">
+                    ${pendingIds.length} pending · ${allIds.length - pendingIds.length} complete
+                </p>
+                <button onclick="closeTaskList()" style="background:none; border:none; color:#888780; cursor:pointer; font-size:1.2rem; line-height:1;">&times;</button>
+            </div>
+            ${rows}
+            ${pendingIds.length > 0
+                ? `<button class="btn btn-success w-100 mt-3" onclick="enterWalkthrough(0)">Start from First Pending</button>`
+                : '<p class="text-center mt-3" style="color:#888780;">All tasks complete ✓</p>'}
+        `;
+        box.style.display = 'block';
+        box.style.left = '50%';
+        box.style.top = '50%';
+        box.style.transform = 'translate(-50%, -50%)';
+        box.style.width = '380px';
+    }
+
+    function closeTaskList() {
+        if (!walkthroughActive) {
+            document.getElementById('task-overlay').style.display = 'none';
+            document.getElementById('task-box').style.display = 'none';
+            document.body.style.overflow = '';
+        }
     }
 
     document.getElementById('tasks-toggle').addEventListener('click', () => {
-        walkthroughActive ? exitWalkthrough() : enterWalkthrough();
+        if (walkthroughActive) {
+            exitWalkthrough();
+        } else {
+            openTaskList();
+        }
     });
 
     function updateShipmentTotal() {

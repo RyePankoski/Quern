@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(200), unique=True, nullable=False)
     display_name = db.Column(db.String(200), nullable=True)
     role = db.Column(db.String(50), nullable=False, default='broker')
+    nationality = db.Column(db.String(100), nullable=True)
 
     @property
     def is_admin(self):

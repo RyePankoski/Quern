@@ -19,7 +19,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Buyer</label>
-                        <select class="form-select" name="buyer">
+                        <select class="form-select" name="buyer" id="buyer-select">
                             <option value="">-- Select Buyer --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
@@ -28,10 +28,14 @@
                             </option>
                             {% endfor %}
                         </select>
+                        <div id="request-buyer-wrap" style="display:none; margin-top:0.5rem;">
+                            <input type="text" class="form-control" name="requested_buyer_name"
+                                   placeholder="Describe the buyer you need added…">
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Seller</label>
-                        <select class="form-select" name="seller">
+                        <select class="form-select" name="seller" id="seller-select">
                             <option value="">-- Select Seller --</option>
                             {% for customer in customers %}
                             <option value="{{ customer.customer_id }}"
@@ -40,6 +44,10 @@
                             </option>
                             {% endfor %}
                         </select>
+                        <div id="request-seller-wrap" style="display:none; margin-top:0.5rem;">
+                            <input type="text" class="form-control" name="requested_seller_name"
+                                   placeholder="Describe the seller you need added…">
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Seller Reference Number</label>
@@ -55,7 +63,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity</label>
-                        <select class="form-select" name="commodity">
+                        <select class="form-select" name="commodity" id="commodity-select">
                             <option value="">-- Select Commodity --</option>
                             {% for item in items %}
                             <option value="{{ item.item_id }}"
@@ -64,6 +72,10 @@
                             </option>
                             {% endfor %}
                         </select>
+                        <div id="request-item-wrap" style="display:none; margin-top:0.5rem;">
+                            <input type="text" class="form-control" name="requested_item_name"
+                                   placeholder="Describe the item you need added…">
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity Price (USD)</label>
@@ -518,6 +530,28 @@
         autoPopulateOfficeFromFirstBroker();
     })();
     {% endif %}
+
+    // ── Request new item/buyer/seller detection ───────────────────────────────
+
+    function isRequestNew(selectEl) {
+        const text = selectEl.options[selectEl.selectedIndex]?.text || '';
+        return text.toLowerCase().includes('request new');
+    }
+
+    function wireRequestDetection(selectId, wrapId) {
+        const sel = document.getElementById(selectId);
+        const wrap = document.getElementById(wrapId);
+        if (!sel || !wrap) return;
+        sel.addEventListener('change', () => {
+            wrap.style.display = isRequestNew(sel) ? 'block' : 'none';
+            if (!isRequestNew(sel)) wrap.querySelector('input').value = '';
+        });
+    }
+
+    wireRequestDetection('commodity-select', 'request-item-wrap');
+    wireRequestDetection('buyer-select', 'request-buyer-wrap');
+    wireRequestDetection('seller-select', 'request-seller-wrap');
+
 </script>
 
 {% endblock %}
