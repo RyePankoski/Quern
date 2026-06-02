@@ -135,13 +135,57 @@ def bulk_edit():
 @app.route('/contracts')
 @login_required
 def contracts():
-    if current_user.is_admin or not current_user.nationality:
-        contracts_list = Contract.query.order_by(Contract.date.desc()).all()
-    else:
-        contracts_list = Contract.query.filter(
-            Contract.location_name == current_user.nationality
-        ).order_by(Contract.date.desc()).all()
-    return render_template('contracts.html', contracts=contracts_list)
+    q = Contract.query
+
+    # Nationality filter
+    if not current_user.is_admin and current_user.nationality:
+        q = q.filter(Contract.location_name == current_user.nationality)
+
+    # Text filters
+    number    = request.args.get('number', '').strip()
+    buyer     = request.args.get('buyer', '').strip()
+    seller    = request.args.get('seller', '').strip()
+    commodity = request.args.get('commodity', '').strip()
+    broker    = request.args.get('broker', '').strip()
+    office    = request.args.get('office', '').strip()
+    status    = request.args.get('status', '').strip()
+    uom       = request.args.get('uom', '').strip()
+    transport = request.args.get('transport', '').strip()
+    innetwork = request.args.get('innetwork', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to   = request.args.get('date_to', '').strip()
+    ship_from = request.args.get('ship_from', '').strip()
+    ship_to   = request.args.get('ship_to', '').strip()
+
+    if number:    q = q.filter(Contract.salesorder_number.ilike(f'%{number}%'))
+    if buyer:     q = q.filter(Contract.cf_buyer.ilike(f'%{buyer}%'))
+    if seller:    q = q.filter(Contract.customer_name.ilike(f'%{seller}%'))
+    if commodity: q = q.filter(Contract.item_name.ilike(f'%{commodity}%'))
+    if broker:    q = q.filter(Contract.salesperson_name.ilike(f'%{broker}%'))
+    if office:    q = q.filter(Contract.location_name.ilike(f'%{office}%'))
+    if uom:       q = q.filter(Contract.cf_uom.ilike(f'%{uom}%'))
+    if transport: q = q.filter(Contract.cf_trnspname == transport)
+    if date_from: q = q.filter(Contract.date >= date_from)
+    if date_to:   q = q.filter(Contract.date <= date_to)
+    if ship_from: q = q.filter(Contract.shipment_date >= ship_from)
+    if ship_to:   q = q.filter(Contract.shipment_date <= ship_to)
+    if status == 'declined':
+        q = q.filter(Contract.is_declined == True)  # noqa
+    elif status:
+        q = q.filter(Contract.status == status)
+    if innetwork == '1':
+        q = q.filter(Contract.in_network == True)   # noqa
+    elif innetwork == '0':
+        q = q.filter(Contract.in_network == False)  # noqa
+
+    contracts_list = q.order_by(Contract.date.desc()).all()
+
+    filters = dict(number=number, buyer=buyer, seller=seller, commodity=commodity,
+                   broker=broker, office=office, status=status, uom=uom,
+                   transport=transport, innetwork=innetwork, date_from=date_from,
+                   date_to=date_to, ship_from=ship_from, ship_to=ship_to)
+
+    return render_template('contracts.html', contracts=contracts_list, filters=filters)
 
 
 @app.route('/tasks')
@@ -485,18 +529,6 @@ def submit_contract_route():
         if b.strip():
             booking_parts.append(f'{b}: {q}' if q.strip() else b)
     form_data['booking_numbers_concat'] = ', '.join(booking_parts)
-
-    # Append any "request new" notes to delivery_notes
-    request_notes = []
-    if form_data.get('requested_item_name', '').strip():
-        request_notes.append(f'[REQUEST NEW ITEM: {form_data["requested_item_name"].strip()}]')
-    if form_data.get('requested_buyer_name', '').strip():
-        request_notes.append(f'[REQUEST NEW BUYER: {form_data["requested_buyer_name"].strip()}]')
-    if form_data.get('requested_seller_name', '').strip():
-        request_notes.append(f'[REQUEST NEW SELLER: {form_data["requested_seller_name"].strip()}]')
-    if request_notes:
-        existing_notes = form_data.get('delivery_notes', '').strip()
-        form_data['delivery_notes'] = chr(10).join(request_notes + ([existing_notes] if existing_notes else []))
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
