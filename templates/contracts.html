@@ -10,7 +10,11 @@
 
 <div class="container py-4">
     <div class="mb-4 d-flex justify-content-between align-items-center">
-        <h2 class="fw-semibold mb-0">All Contracts</h2>
+        <h2 class="fw-semibold mb-0">All Contracts
+            <span class="text-muted" style="font-size:0.9rem; font-weight:400; margin-left:0.5rem;">
+                {{ contracts | length }} result{{ 's' if contracts | length != 1 else '' }}
+            </span>
+        </h2>
         <div class="d-flex gap-2">
             <a href="/contracts/export" class="btn btn-outline-secondary">Export to Excel</a>
             <a href="/bulk_edit" class="btn btn-outline-secondary">Bulk Edit</a>
@@ -18,89 +22,84 @@
     </div>
 
     <!-- Filter Bar -->
-    <div class="row g-2 mb-2">
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
+    <form method="GET" action="/contracts" id="filter-form">
+        <div class="row g-2 mb-2">
+            <div class="col-6 col-md-2">
+                <input type="text" name="number" class="form-control form-control-sm" placeholder="Contract #"
+                       value="{{ filters.number }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" name="buyer" class="form-control form-control-sm" placeholder="Buyer"
+                       value="{{ filters.buyer }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" name="seller" class="form-control form-control-sm" placeholder="Seller"
+                       value="{{ filters.seller }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" name="commodity" class="form-control form-control-sm" placeholder="Commodity"
+                       value="{{ filters.commodity }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" name="broker" class="form-control form-control-sm" placeholder="Broker"
+                       value="{{ filters.broker }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <input type="text" name="office" class="form-control form-control-sm" placeholder="Office"
+                       value="{{ filters.office }}">
+            </div>
         </div>
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-buyer" class="form-control form-control-sm" placeholder="Buyer">
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-2">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Statuses</option>
+                    <option value="draft"      {% if filters.status == 'draft' %}selected{% endif %}>draft</option>
+                    <option value="confirmed"  {% if filters.status == 'confirmed' %}selected{% endif %}>confirmed</option>
+                    <option value="void"       {% if filters.status == 'void' %}selected{% endif %}>void</option>
+                    <option value="declined"   {% if filters.status == 'declined' %}selected{% endif %}>declined</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select name="uom" class="form-select form-select-sm">
+                    <option value="">All UOMs</option>
+                    {% for u in ['metric tons','bushels','short tons','lbs','cars','consulting','other'] %}
+                    <option value="{{ u }}" {% if filters.uom == u %}selected{% endif %}>{{ u }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select name="innetwork" class="form-select form-select-sm">
+                    <option value="">In Network: All</option>
+                    <option value="1" {% if filters.innetwork == '1' %}selected{% endif %}>In Network</option>
+                    <option value="0" {% if filters.innetwork == '0' %}selected{% endif %}>Not In Network</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <select name="transport" class="form-select form-select-sm">
+                    <option value="">All Transport</option>
+                    {% for t in ['Barge','containers','Rail','Rail or Truck','Truck','Vessel','consulting','Performance','Paper','Freight','Other'] %}
+                    <option value="{{ t }}" {% if filters.transport == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract From</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filters.date_from }}">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract To</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filters.date_to }}">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship From</label>
+                <input type="date" name="ship_from" class="form-control form-control-sm" value="{{ filters.ship_from }}">
+            </div>
+            <div class="col-6 col-md-1">
+                <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship To</label>
+                <input type="date" name="ship_to" class="form-control form-control-sm" value="{{ filters.ship_to }}">
+            </div>
         </div>
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-seller" class="form-control form-control-sm" placeholder="Seller">
-        </div>
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-commodity" class="form-control form-control-sm" placeholder="Commodity">
-        </div>
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-broker" class="form-control form-control-sm" placeholder="Broker">
-        </div>
-        <div class="col-6 col-md-2">
-            <input type="text" id="filter-office" class="form-control form-control-sm" placeholder="Office">
-        </div>
-    </div>
-    <div class="row g-2 mb-3">
-        <div class="col-6 col-md-2">
-            <select id="filter-status" class="form-select form-select-sm">
-                <option value="">All Statuses</option>
-                <option>draft</option>
-                <option>confirmed</option>
-                <option>void</option>
-                <option value="declined">declined</option>
-            </select>
-        </div>
-        <div class="col-6 col-md-2">
-            <select id="filter-uom" class="form-select form-select-sm">
-                <option value="">All UOMs</option>
-                <option>metric tons</option>
-                <option>bushels</option>
-                <option>short tons</option>
-                <option>lbs</option>
-                <option>cars</option>
-                <option>consulting</option>
-                <option>other</option>
-            </select>
-        </div>
-        <div class="col-6 col-md-2">
-            <select id="filter-innetwork" class="form-select form-select-sm">
-                <option value="">In Network: All</option>
-                <option value="1">In Network</option>
-                <option value="0">Not In Network</option>
-            </select>
-        </div>
-        <div class="col-6 col-md-2">
-            <select id="filter-transport" class="form-select form-select-sm">
-                <option value="">All Transport</option>
-                <option>Barge</option>
-                <option>containers</option>
-                <option>Rail</option>
-                <option>Rail or Truck</option>
-                <option>Truck</option>
-                <option>Vessel</option>
-                <option>consulting</option>
-                <option>Performance</option>
-                <option>Paper</option>
-                <option>Freight</option>
-                <option>Other</option>
-            </select>
-        </div>
-
-        <div class="col-6 col-md-1">
-            <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract From</label>
-            <input type="date" id="filter-date-from" class="form-control form-control-sm">
-        </div>
-        <div class="col-6 col-md-1">
-            <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Contract To</label>
-            <input type="date" id="filter-date-to" class="form-control form-control-sm">
-        </div>
-        <div class="col-6 col-md-1">
-            <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship From</label>
-            <input type="date" id="filter-ship-from" class="form-control form-control-sm">
-        </div>
-        <div class="col-6 col-md-1">
-            <label class="form-label form-label-sm text-muted mb-0" style="font-size:0.7rem;">Ship To</label>
-            <input type="date" id="filter-ship-to" class="form-control form-control-sm">
-        </div>
-    </div>
+    </form>
 
     <div class="table-responsive">
         <table class="table table-bordered table-hover">
@@ -120,21 +119,7 @@
             <tbody id="contracts-tbody">
             {% for contract in contracts %}
             <tr onclick="window.location='/contracts/{{ contract.salesorder_id }}'" style="cursor: pointer;"
-                class="{% if contract.is_declined %}row-declined{% endif %}"
-                data-number="{{ contract.salesorder_number | lower }}"
-                data-buyer="{{ (contract.cf_buyer or '') | lower }}"
-                data-seller="{{ (contract.customer_name or '') | lower }}"
-                data-status="{{ (contract.status or '') | lower }}"
-                data-declined="{{ '1' if contract.is_declined else '0' }}"
-                data-date="{{ contract.date or '' }}"
-                data-commodity="{{ (contract.item_name or '') | lower }}"
-                data-broker="{{ (contract.salesperson_name or '') | lower }}"
-                data-office="{{ (contract.location_name or '') | lower }}"
-                data-uom="{{ (contract.cf_uom or '') | lower }}"
-                data-transport="{{ (contract.cf_trnspname or '') | lower }}"
-                data-innetwork="{{ '1' if contract.in_network else '0' }}"
-                data-ship-start="{{ contract.shipment_date or '' }}"
-                data-ship-end="{{ contract.cf_shipment_end_date or '' }}">
+                class="{% if contract.is_declined %}row-declined{% endif %}">
                 <td>{{ loop.index }}</td>
                 <td>{{ contract.salesorder_number }}</td>
                 <td>{{ contract.cf_buyer or '' }}</td>
@@ -152,58 +137,23 @@
 </div>
 
 <script>
-    const filterIds = [
-        'filter-number', 'filter-buyer', 'filter-seller', 'filter-commodity',
-        'filter-broker', 'filter-office', 'filter-status', 'filter-uom',
-        'filter-transport', 'filter-innetwork', 'filter-date-from', 'filter-date-to',
-        'filter-ship-from', 'filter-ship-to'
-    ];
-
-    filterIds.forEach(id => {
-        document.getElementById(id).addEventListener('input', applyFilters);
+    // Debounced auto-submit on text input change
+    let debounceTimer;
+    document.querySelectorAll('#filter-form input[type="text"]').forEach(el => {
+        el.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                document.getElementById('filter-form').submit();
+            }, 500);
+        });
     });
 
-    function applyFilters() {
-        const number    = document.getElementById('filter-number').value.toLowerCase();
-        const buyer     = document.getElementById('filter-buyer').value.toLowerCase();
-        const seller    = document.getElementById('filter-seller').value.toLowerCase();
-        const commodity = document.getElementById('filter-commodity').value.toLowerCase();
-        const broker    = document.getElementById('filter-broker').value.toLowerCase();
-        const office    = document.getElementById('filter-office').value.toLowerCase();
-        const status    = document.getElementById('filter-status').value.toLowerCase();
-        const uom       = document.getElementById('filter-uom').value.toLowerCase();
-        const transport = document.getElementById('filter-transport').value.toLowerCase();
-        const innetwork = document.getElementById('filter-innetwork').value;
-        const dateFrom  = document.getElementById('filter-date-from').value;
-        const dateTo    = document.getElementById('filter-date-to').value;
-        const shipFrom  = document.getElementById('filter-ship-from').value;
-        const shipTo    = document.getElementById('filter-ship-to').value;
-
-        document.querySelectorAll('#contracts-tbody tr').forEach(row => {
-            const d = row.dataset;
-            const show =
-                (!number    || d.number.includes(number)) &&
-                (!buyer     || d.buyer.includes(buyer)) &&
-                (!seller    || d.seller.includes(seller)) &&
-                (!commodity || d.commodity.includes(commodity)) &&
-                (!broker    || d.broker.includes(broker)) &&
-                (!office    || d.office.includes(office)) &&
-                (!status    || (status === 'declined' ? d.declined === '1' : d.status === status)) &&
-                (!uom       || d.uom === uom) &&
-                (!transport || d.transport === transport) &&
-                (!innetwork || d.innetwork === innetwork) &&
-                (!dateFrom  || d.date >= dateFrom) &&
-                (!dateTo    || d.date <= dateTo) &&
-                (!shipFrom  || (d.shipStart && d.shipStart >= shipFrom)) &&
-                (!shipTo    || (d.shipEnd   && d.shipEnd   <= shipTo));
-            row.style.display = show ? '' : 'none';
+    // Immediate submit on select/date change
+    document.querySelectorAll('#filter-form select, #filter-form input[type="date"]').forEach(el => {
+        el.addEventListener('change', () => {
+            document.getElementById('filter-form').submit();
         });
-    }
-</script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script>
-
+    });
 </script>
 
 {% endblock %}
