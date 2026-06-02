@@ -13,6 +13,7 @@
         <h2 class="fw-semibold mb-0">All Contracts
             <span class="text-muted" style="font-size:0.9rem; font-weight:400; margin-left:0.5rem;">
                 {{ contracts | length }} result{{ 's' if contracts | length != 1 else '' }}
+                {% if limited %}<span style="font-size:0.75rem; color:#b8860b;"> — showing most recent 500, use filters to search all</span>{% endif %}
             </span>
         </h2>
         <div class="d-flex gap-2">
