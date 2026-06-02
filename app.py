@@ -254,6 +254,20 @@ def update_employee_active(employee_id):
     return {'ok': True}
 
 
+@app.route('/contracts/export')
+@login_required
+def export_contracts():
+    from datetime import date
+    buffer = _export_contracts_xlsx()
+    filename = f"contracts_{date.today().isoformat()}.xlsx"
+    return send_file(
+        buffer,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
 @app.route('/contracts/<salesorder_id>')
 @login_required
 def contract_detail(salesorder_id):
@@ -533,6 +547,18 @@ def submit_contract_route():
         if b.strip():
             booking_parts.append(f'{b}: {q}' if q.strip() else b)
     form_data['booking_numbers_concat'] = ', '.join(booking_parts)
+
+    # Append any "request new" notes to delivery_notes
+    request_notes = []
+    if form_data.get('requested_item_name', '').strip():
+        request_notes.append('[REQUEST NEW ITEM: ' + form_data['requested_item_name'].strip() + ']')
+    if form_data.get('requested_buyer_name', '').strip():
+        request_notes.append('[REQUEST NEW BUYER: ' + form_data['requested_buyer_name'].strip() + ']')
+    if form_data.get('requested_seller_name', '').strip():
+        request_notes.append('[REQUEST NEW SELLER: ' + form_data['requested_seller_name'].strip() + ']')
+    if request_notes:
+        existing_notes = form_data.get('delivery_notes', '').strip()
+        form_data['delivery_notes'] = chr(10).join(request_notes + ([existing_notes] if existing_notes else []))
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
@@ -1139,6 +1165,85 @@ def first_time_startup():
     sync_customers()
     sync_employees()
     create_user()
+
+
+def _export_contracts_xlsx():
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    if current_user.is_admin or not current_user.nationality:
+        contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    else:
+        contracts_list = Contract.query.filter(
+            Contract.location_name == current_user.nationality
+        ).order_by(Contract.date.desc()).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Contracts'
+
+    headers = [
+        'Contract #', 'Date', 'Status', 'Seller', 'Buyer',
+        'Seller Ref #', 'Buyer Ref #', 'Commodity', 'Quantity', 'UOM',
+        'Commodity Price', 'Commission Rate', 'Commission Total',
+        'Transportation', 'Vessel Name', 'Ship Date Start', 'Ship Date End',
+        'Co-Broker', 'Co-Brokerage Rate', 'Salesperson', 'Office',
+        'In Network', 'Packing', 'Notes', 'Terms', 'Declined',
+    ]
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='1e1e1c', end_color='1e1e1c', fill_type='solid')
+
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    for c in contracts_list:
+        ws.append([
+            c.salesorder_number or '',
+            c.date or '',
+            c.status or '',
+            c.customer_name or '',
+            c.cf_buyer or '',
+            c.cf_customer_ref or '',
+            c.buyer_reference or '',
+            c.item_name or '',
+            c.quantity,
+            c.cf_uom or '',
+            c.cf_item_contract_price,
+            c.rate,
+            round((c.rate or 0) * (c.quantity or 0), 2) or None,
+            c.cf_trnspname or '',
+            c.cf_vessel_name or '',
+            c.shipment_date or '',
+            c.cf_shipment_end_date or '',
+            c.cf_co_broker or '',
+            c.cf_co_brokerage_rate,
+            c.salesperson_name or '',
+            c.location_name or '',
+            'Yes' if c.in_network is True else 'No' if c.in_network is False else '',
+            c.packing or '',
+            c.notes or '',
+            c.terms or '',
+            'Yes' if c.is_declined else 'No',
+        ])
+
+    col_widths = [
+        15, 12, 12, 28, 28, 18, 18, 25, 12, 12,
+        16, 16, 16, 16, 20, 14, 14,
+        20, 16, 20, 15,
+        12, 10, 40, 40, 10,
+    ]
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[ws.cell(1, i).column_letter].width = width
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
 
 
 def _build_contract_data(salesorder_id):

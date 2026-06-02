@@ -1,98 +1,881 @@
 {% extends 'base.html' %}
 {% block content %}
 
+<style>
+    #task-box {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        background: #242422;
+        border: 1px solid #3a3a38;
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        width: 280px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    #task-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        pointer-events: none;
+    }
+
+    #unsaved-banner {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 4000;
+        background: #8b0000;
+        color: #fff;
+        text-align: center;
+        padding: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        font-size: 0.95rem;
+    }
+
+    #declined-banner {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 1500;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #declined-banner-inner {
+        font-size: 6rem;
+        font-weight: 700;
+        color: rgba(180, 30, 30, 0.45);
+        letter-spacing: 0.15em;
+        border: 6px solid rgba(180, 30, 30, 0.45);
+        padding: 0.5rem 2rem;
+        border-radius: 8px;
+        user-select: none;
+    }
+</style>
+
 <div class="container py-4">
 
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <div>
-            <h2 class="fw-semibold mb-0">{{ customer.customer_name }}</h2>
-            <span class="text-muted">Counterparty Detail</span>
+            <h2 class="fw-semibold mb-0">{{ contract['salesorder_number'] }}</h2>
+            <span class="text-muted">{{ contract['status'] | capitalize }}</span>
         </div>
-        <a href="/counterparties" class="btn btn-outline-secondary">← Back to Counterparties</a>
+        <div class="d-flex gap-2">
+            <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>
+            <a href="/contracts/{{ contract['salesorder_id'] }}/docx" class="btn btn-outline-secondary" data-no-overlay>Download DOCX</a>
+            <a href="/new_contract?duplicate={{ contract['salesorder_id'] }}" class="btn btn-outline-secondary">Duplicate</a>
+            <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
+        </div>
     </div>
 
-    <!-- Contact Info -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Contact Information</h5>
-        </div>
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Email</label>
-                    <p class="mb-0">{{ customer.email or '—' }}</p>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Phone</label>
-                    <p class="mb-0">{{ customer.phone or '—' }}</p>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Country</label>
-                    <p class="mb-0">{{ customer.country or '—' }}</p>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Address</label>
-                    <p class="mb-0">
-                        {% if customer.address %}
-                            {{ customer.address }}<br>
-                            {% if customer.city %}{{ customer.city }}{% endif %}
-                            {% if customer.state %}, {{ customer.state }}{% endif %}
-                            {% if customer.zip %} {{ customer.zip }}{% endif %}
-                        {% else %}
-                            —
-                        {% endif %}
-                    </p>
+    <form method="POST" action="/contracts/{{ contract['salesorder_id'] }}/update">
+
+        <!-- Contract Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Contract Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Buyer</label>
+                        <select class="form-select" name="buyer">
+                            <option value="">-- Select Buyer --</option>
+                            {% for customer in customers %}
+                            <option value="{{ customer.customer_id }}"
+                                    {% if contract['custom'].get('cf_buyer') == customer.customer_name %}selected{% endif %}>
+                                {{ customer.customer_name }}{% if not customer.is_active %} (Inactive){% endif %}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Seller</label>
+                        <select class="form-select" name="seller">
+                            <option value="">-- Select Seller --</option>
+                            {% for customer in customers %}
+                            <option value="{{ customer.customer_id }}"
+                                    {% if contract['customer_id'] == customer.customer_id %}selected{% endif %}>
+                                {{ customer.customer_name }}{% if not customer.is_active %} (Inactive){% endif %}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Seller Reference Number</label>
+                        <input type="text" class="form-control" name="seller_reference"
+                               value="{{ contract['custom'].get('cf_customer_ref', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Buyer Reference Number</label>
+                        <input type="text" class="form-control" name="buyer_reference"
+                               value="{{ meta.buyer_reference or '' if meta else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Commodity</label>
+                        <select class="form-select" name="commodity">
+                            <option value="">-- Select Commodity --</option>
+                            {% for item in items %}
+                            <option value="{{ item.item_id }}"
+                                    {% if contract['line_items'] and contract['line_items'][0]['item_id'] == item.item_id %}selected{% endif %}>
+                                {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}{% if not item.is_active %} (Inactive){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Commodity Price (USD)</label>
+                        <input type="number" step="0.01" class="form-control" name="commodity_rate"
+                               value="{{ contract['custom'].get('cf_item_contract_price', '') }}">
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Contracts -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Contracts</h5>
-            <span class="text-muted" style="font-size:0.85rem;">{{ contracts | length }} found</span>
+        <!-- Commodity Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Commodity Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Contract Date</label>
+                        <input type="date" class="form-control" name="contract_date"
+                               value="{{ contract.get('date', '') }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Commission Rate (USD)</label>
+                        <input type="number" step="0.000000001" class="form-control" name="commission_rate"
+                               value="{{ contract['line_items'][0]['rate'] if contract.get('line_items') else '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" step="0.01" class="form-control" name="quantity"
+                               value="{{ contract['line_items'][0]['quantity'] if contract.get('line_items') else '' }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">UOM</label>
+                        <select class="form-select" name="uom">
+                            <option value="">-- Select --</option>
+                            {% for option in ['metric tons', 'bushels', 'short tons', 'LBS', 'cars', 'consulting', 'other'] %}
+                            <option value="{{ option }}"
+                                    {% if contract['custom'].get('cf_uom') == option %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Contract Terms</label>
+                        <textarea class="form-control" rows="4" name="terms">{{ contract.get('terms', '') }}</textarea>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="card-body p-0">
-            {% if contracts %}
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover mb-0">
+
+        <!-- Transportation Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Transportation Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Transportation</label>
+                        <select class="form-select" name="transportation">
+                            <option value="">-- Select --</option>
+                            {% for option in ['Barge', 'containers', 'Rail', 'Rail or Truck', 'Truck', 'Vessel', 'consulting', 'Performance', 'Paper', 'Freight', 'Other'] %}
+                            <option value="{{ option }}"
+                                    {% if contract['custom'].get('cf_trnspname') == option %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Vessel Name</label>
+                        <input type="text" class="form-control" name="vessel_name"
+                               value="{{ contract['custom'].get('cf_vessel_name', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Packing in Bulk</label>
+                        <select class="form-select" name="packing">
+                            <option value="">-- Select --</option>
+                            <option {% if meta and meta.packing == 'Yes' %}selected{% endif %}>Yes</option>
+                            <option {% if meta and meta.packing == 'No' %}selected{% endif %}>No</option>
+                            <option {% if meta and meta.packing == 'N/A' %}selected{% endif %}>N/A</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date Start</label>
+                        <input type="date" class="form-control" name="shipping_date"
+                               value="">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expected Shipping Date End</label>
+                        <input type="date" class="form-control" name="shipping_date_end"
+                               value="{{ contract.get('shipment_date', '') or contract['custom'].get('cf_shipment_end_date', '') }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Delivery Notes</label>
+                        <textarea class="form-control" rows="4"
+                                  name="delivery_notes">{{ contract.get('notes', '') }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Broker Team -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Broker Team</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Co Broker Name</label>
+                        <input type="text" class="form-control" name="co_broker_name"
+                               value="{{ contract['custom'].get('cf_co_broker', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Co Brokerage Rate</label>
+                        <input type="text" class="form-control" name="co_brokerage_rate"
+                               value="{{ contract['custom'].get('cf_co_brokerage_rate', '') }}">
+                    </div>
+                </div>
+                <label class="form-label fw-semibold">Broker Commission</label>
+                <div id="broker-validation" style="display:none; color:#b8860b; font-size:0.85rem; margin-bottom:0.5rem;">
+                    ⚠ Broker percentages do not add up to 100% — you can still save.
+                </div>
+                <table class="table table-bordered table-sm">
                     <thead class="table-dark">
-                        <tr>
-                            <th>Contract #</th>
-                            <th>Role</th>
-                            <th>Buyer</th>
-                            <th>Seller</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                        </tr>
+                    <tr>
+                        <th>Employee</th>
+                        <th style="width:120px;">Percentage</th>
+                        <th style="width:150px;">Amount (USD)</th>
+                        <th style="width:40px;"></th>
+                    </tr>
                     </thead>
-                    <tbody>
-                        {% for contract in contracts %}
-                        <tr onclick="window.location='/contracts/{{ contract.salesorder_id }}'" style="cursor:pointer;">
-                            <td>{{ contract.salesorder_number }}</td>
-                            <td>
-                                {% if contract.customer_id == customer.customer_id %}
-                                    <span style="color:#4f7a1a; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Seller</span>
-                                {% else %}
-                                    <span style="color:#c8961a; font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Buyer</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ contract.cf_buyer or '—' }}</td>
-                            <td>{{ contract.customer_name }}</td>
-                            <td>{{ contract.status | capitalize }}</td>
-                            <td>{{ contract.date }}</td>
-                        </tr>
-                        {% endfor %}
+                    <tbody id="broker-commission-body">
+                    {% if commissions %}
+                    {% for commission in commissions %}
+                    <tr>
+                        <td>
+                            <select class="form-select form-select-sm" name="broker_employee[]">
+                                <option value="">-- Select Employee --</option>
+                                {% for emp_id, emp_name in employee_map.items() %}
+                                <option value="{{ emp_id }}" {% if commission.employee_id == emp_id %}selected{% endif %}>
+                                    {{ emp_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                                   value="{{ commission.percentage }}" min="0" max="100" step="0.01">
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                                   value="{{ commission.amount }}" readonly
+                                   style="background-color:#1a1a18; color:#888780;">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% elif salesperson_employee %}
+                    <tr>
+                        <td>
+                            <select class="form-select form-select-sm" name="broker_employee[]">
+                                <option value="">-- Select Employee --</option>
+                                {% for emp_id, emp_name in employee_map.items() %}
+                                <option value="{{ emp_id }}" {% if emp_id == salesperson_employee.employee_id %}selected{% endif %}>
+                                    {{ emp_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                                   value="100" min="0" max="100" step="0.01">
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                                   placeholder="—" readonly style="background-color:#1a1a18; color:#888780;">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                            </button>
+                        </td>
+                    </tr>
+                    {% endif %}
                     </tbody>
                 </table>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addBrokerRow()">+ Add Broker</button>
+                <div class="d-flex justify-content-end mt-3">
+                    <span class="text-muted me-2" style="font-size:0.85rem;">Total Commission:</span>
+                    <span id="broker-total" style="font-size:0.85rem; font-weight:600;">—</span>
+                </div>
             </div>
+        </div>
+
+        <!-- Shipments -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Shipments</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-bordered table-sm">
+                    <thead class="table-dark">
+                    <tr>
+                        <th>Booking Number</th>
+                        <th style="width:160px;">Quantity</th>
+                        <th style="width:50px;"></th>
+                    </tr>
+                    </thead>
+                    <tbody id="shipments-body">
+                    {% for shipment in shipments %}
+                    <tr>
+                        <td><input type="text" class="form-control form-control-sm" name="booking_number[]"
+                                   value="{{ shipment.booking_number or '' }}"></td>
+                        <td><input type="number" step="0.01" class="form-control form-control-sm" name="shipment_quantity[]"
+                                   value="{{ shipment.quantity or '' }}"></td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    onclick="this.closest('tr').remove(); updateShipmentTotal();">✕
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-end mt-1 mb-2">
+                    <span class="text-muted me-2" style="font-size:0.85rem;">Total Shipped Qty:</span>
+                    <span id="shipment-qty-total" style="font-size:0.85rem; font-weight:600;">—</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
+            </div>
+        </div>
+
+        <!-- Shipments and Status -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Shipments and Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Network</label>
+                        <select class="form-select" name="in_network">
+                            <option value="">-- Select --</option>
+                            <option value="true" {% if meta and meta.in_network == True %}selected{% endif %}>In Network</option>
+                            <option value="false" {% if meta and meta.in_network == False %}selected{% endif %}>Out of Network</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Salesperson</label>
+                        <input type="text" class="form-control" value="{{ contract.get('salesperson_name', '') }}"
+                               readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="d-flex gap-2 justify-content-end mb-5">
+            <a href="/contracts" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-success">Save Changes</button>
+        </div>
+
+    </form>
+
+    <!-- Notes -->
+    <div class="card mb-4" id="notes">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Notes</h5>
+            <span class="badge bg-secondary">{{ notes | length }}</span>
+        </div>
+        <div class="card-body">
+            {% if notes %}
+            <ul class="list-unstyled mb-3">
+                {% for note in notes %}
+                <li class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small mb-1">{{ note.author }} &mdash; {{ note.created_at.strftime('%b %d, %Y %H:%M') }}</div>
+                            <div style="white-space: pre-wrap;">{{ note.body }}</div>
+                        </div>
+                        <form method="POST" action="/contracts/notes/{{ note.id }}/delete" class="ms-3 flex-shrink-0" data-no-overlay>
+                            <button type="submit" class="btn btn-sm btn-outline-danger">✕</button>
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
             {% else %}
-            <div class="p-4 text-muted">No contracts found for this counterparty in the most recent 200 contracts.</div>
+            <p class="text-muted mb-3">No notes yet.</p>
             {% endif %}
+            <form method="POST" action="/contracts/{{ contract['salesorder_id'] }}/notes/add" data-no-overlay>
+                <div class="mb-2">
+                    <textarea class="form-control" name="body" rows="3" placeholder="Add a note..."></textarea>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-sm btn-primary">Add Note</button>
+                </div>
+            </form>
         </div>
     </div>
 
 </div>
+
+<button id="tasks-toggle" class="btn btn-success"
+        style="position:fixed; bottom:2rem; left:2rem; z-index:3500; padding: 0.75rem 1.5rem;">
+    Tasks ({{ tasks | selectattr('status', 'equalto', 'pending') | list | length }})
+</button>
+
+<button id="decline-btn"
+        style="position:fixed; bottom:2rem; left:calc(2rem + 130px); z-index:3500; padding:0.75rem 1.5rem;"
+        class="btn {% if contract['is_declined'] %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}">
+    {% if contract['is_declined'] %}Reactivate Contract{% else %}Mark as Declined{% endif %}
+</button>
+
+{% if contract['is_declined'] %}
+<div id="declined-banner">
+    <div id="declined-banner-inner">DECLINED</div>
+</div>
+{% endif %}
+
+<div id="task-overlay"></div>
+<div id="task-box"></div>
+<div id="unsaved-banner">Unsaved Changes</div>
+
+<script>
+
+    function getBrokerTotal() {
+        let total = 0;
+        document.querySelectorAll('[name="broker_percentage[]"]').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        return total;
+    }
+
+    function recalculateBrokerAmounts() {
+        const rate = parseFloat(document.querySelector('[name="commission_rate"]').value) || 0;
+        const qty = parseFloat(document.querySelector('[name="quantity"]').value) || 0;
+        const totalCommission = rate * qty;
+        document.querySelectorAll('#broker-commission-body tr').forEach(row => {
+            const pct = parseFloat(row.querySelector('[name="broker_percentage[]"]').value) || 0;
+            const amtInput = row.querySelector('[name="broker_amount[]"]');
+            amtInput.value = totalCommission > 0 ? (totalCommission * pct / 100).toFixed(2) : '';
+        });
+        const total = getBrokerTotal();
+        const validation = document.getElementById('broker-validation');
+        validation.style.display = (total > 0 && Math.abs(total - 100) > 0.01) ? 'block' : 'none';
+        const brokerTotalEl = document.getElementById('broker-total');
+        if (brokerTotalEl) {
+            const grandTotal = Array.from(document.querySelectorAll('[name="broker_amount[]"]'))
+                .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+            brokerTotalEl.textContent = grandTotal > 0 ? '$' + grandTotal.toFixed(2) : '—';
+        }
+    }
+
+    function addBrokerRow(employeeId='', percentage='') {
+        const tbody = document.getElementById('broker-commission-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm" name="broker_employee[]">
+                    <option value="">-- Select Employee --</option>
+                    {% for employee in employees %}
+                    <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm" name="broker_percentage[]"
+                       placeholder="0" min="0" max="100" step="0.01" value="${percentage}">
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm" name="broker_amount[]"
+                       placeholder="—" readonly style="background-color:#1a1a18; color:#888780;">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        if (employeeId) {
+            tr.querySelector('[name="broker_employee[]"]').value = employeeId;
+        }
+        tr.querySelector('[name="broker_percentage[]"]').addEventListener('input', recalculateBrokerAmounts);
+        recalculateBrokerAmounts();
+    }
+
+    document.querySelector('[name="commission_rate"]').addEventListener('input', recalculateBrokerAmounts);
+    document.querySelector('[name="quantity"]').addEventListener('input', recalculateBrokerAmounts);
+
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const rows = document.querySelectorAll('#broker-commission-body tr');
+        if (rows.length > 0) {
+            const total = getBrokerTotal();
+            const validationEl = document.getElementById('broker-validation');
+            if (Math.abs(total - 100) > 0.01) {
+                validationEl.style.display = 'block';
+                validationEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Warn but do not block — allow save to proceed
+            } else {
+                validationEl.style.display = 'none';
+            }
+        }
+    });
+
+    const rawTasks = [
+        {% for task in tasks %}
+        {
+            id: {{ task.id }},
+            status: {{ task.status | tojson }},
+            template: {
+                title: {{ task.template.title | tojson }},
+                description: {{ task.template.description | tojson }},
+                books_field: {{ task.template.books_field | tojson }}
+            }
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const taskData = rawTasks.reduce((acc, t) => {
+        acc[t.id] = { ...t, field: t.template.books_field, title: t.template.title, description: t.template.description };
+        return acc;
+    }, {});
+
+    let walkthroughActive = false;
+
+    function getFieldElement(fieldName) {
+        return document.querySelector(`[name="${fieldName}"]`);
+    }
+
+    function positionBox(fieldEl) {
+        const rect = fieldEl.getBoundingClientRect();
+        const box = document.getElementById('task-box');
+        const margin = 20;
+        box.style.display = 'block';
+        box.style.transform = '';
+        let left = rect.right + margin;
+        if (left + 280 > window.innerWidth) {
+            left = rect.left - 280 - margin;
+        }
+        box.style.left = Math.max(margin, left) + 'px';
+        box.style.top = rect.top + 'px';
+    }
+
+    function centerBox() {
+        const box = document.getElementById('task-box');
+        box.style.display = 'block';
+        box.style.left = '50%';
+        box.style.top = '50%';
+        box.style.transform = 'translate(-50%, -50%)';
+    }
+
+    function confirmTask(taskId, value) {
+        fetch(`/tasks/${taskId}/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed_value: value })
+        }).then(res => res.json()).then(data => {
+            if (data.ok) {
+                taskData[taskId].status = 'complete';
+                updateTaskButton();
+                showTask(0);
+            }
+        });
+    }
+
+    function showTask(index) {
+        const pendingIds = Object.keys(taskData).filter(id => taskData[id].status === 'pending');
+
+        if (index >= pendingIds.length) {
+            exitWalkthrough();
+            return;
+        }
+
+        const task = taskData[pendingIds[index]];
+        const taskBox = document.getElementById('task-box');
+
+        taskBox.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <p style="color:#888780; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin:0;" id="task-counter"></p>
+                <button onclick="exitWalkthrough()" style="background:none; border:none; color:#888780; cursor:pointer; font-size:1.2rem; line-height:1;">&times;</button>
+            </div>
+            <p style="color:#d3d1c7; font-weight:500; margin-bottom:0.5rem;" id="task-title"></p>
+            <p style="color:#888780; font-size:0.9rem; margin-bottom:1rem;" id="task-description"></p>
+            <div id="task-actions"></div>
+        `;
+
+        document.getElementById('task-counter').textContent = `Task ${index + 1} of ${pendingIds.length}`;
+        document.getElementById('task-title').textContent = task.title;
+        document.getElementById('task-description').textContent = task.description;
+
+        const actionArea = document.getElementById('task-actions');
+
+        if (task.field) {
+            const fieldEl = getFieldElement(task.field);
+            if (!fieldEl) { showTask(index + 1); return; }
+
+            fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setTimeout(() => {
+                const rect = fieldEl.getBoundingClientRect();
+                const overlay = document.getElementById('task-overlay');
+                overlay.style.display = 'block';
+                overlay.style.position = 'fixed';
+                overlay.style.inset = '0';
+                overlay.style.pointerEvents = 'none';
+                overlay.style.background = `radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%)`;
+
+                positionBox(fieldEl);
+                actionArea.innerHTML = `<button id="btn-confirm" class="btn btn-success w-100">Confirm</button>`;
+                document.getElementById('btn-confirm').onclick = () => {
+                    const val = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
+                    confirmTask(task.id, val);
+                };
+            }, 350);
+
+        } else {
+            const overlay = document.getElementById('task-overlay');
+            overlay.style.display = 'block';
+            overlay.style.background = 'rgba(14,14,12,0.85)';
+            centerBox();
+            actionArea.innerHTML = `
+                <div class="d-flex gap-2">
+                    <button id="btn-yes" class="btn btn-success w-50">Yes</button>
+                    <button id="btn-no" class="btn btn-outline-secondary w-50 text-white">No</button>
+                </div>
+            `;
+            document.getElementById('btn-yes').onclick = () => confirmTask(task.id, 'yes');
+            document.getElementById('btn-no').onclick = () => confirmTask(task.id, 'no');
+        }
+    }
+
+    function updateTaskButton() {
+        const remaining = Object.values(taskData).filter(t => t.status === 'pending').length;
+        document.getElementById('tasks-toggle').textContent = `Tasks (${remaining})`;
+    }
+
+    function exitWalkthrough() {
+        walkthroughActive = false;
+        document.getElementById('task-overlay').style.display = 'none';
+        const box = document.getElementById('task-box');
+        box.style.display = 'none';
+        box.style.width = '280px';
+        document.body.style.overflow = '';
+    }
+
+    function enterWalkthrough(startIndex) {
+        document.body.style.overflow = 'hidden';
+        walkthroughActive = true;
+        const box = document.getElementById('task-box');
+        box.style.width = '280px';
+        box.style.transform = '';
+        showTask(startIndex);
+    }
+
+    // ── Task List Panel ───────────────────────────────────────────────────────
+
+    function openTaskList() {
+        const overlay = document.getElementById('task-overlay');
+        const box = document.getElementById('task-box');
+        overlay.style.display = 'block';
+        overlay.style.background = 'rgba(14,14,12,0.85)';
+        document.body.style.overflow = 'hidden';
+
+        const allIds = Object.keys(taskData);
+        const pendingIds = allIds.filter(id => taskData[id].status === 'pending');
+
+        const rows = allIds.map((id) => {
+            const t = taskData[id];
+            const isPending = t.status === 'pending';
+            const pendingIndex = pendingIds.indexOf(id);
+            return `
+                <div class="d-flex justify-content-between align-items-center py-2"
+                     style="border-bottom:1px solid #3a3a38;">
+                    <div>
+                        <span style="color:${isPending ? '#d3d1c7' : '#888780'}; font-weight:${isPending ? '500' : '400'};">
+                            ${t.title}
+                        </span>
+                        ${isPending
+                            ? '<span class="badge ms-2" style="background:#4f7a1a; font-size:0.7rem;">pending</span>'
+                            : '<span class="badge ms-2" style="background:#2c2c2a; color:#888780; font-size:0.7rem;">done</span>'}
+                    </div>
+                    ${isPending
+                        ? `<button class="btn btn-sm btn-success" onclick="enterWalkthrough(${pendingIndex})">Start</button>`
+                        : '<span style="color:#888780; font-size:0.85rem;">✓</span>'}
+                </div>
+            `;
+        }).join('');
+
+        box.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <p style="color:#888780; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; margin:0;">
+                    ${pendingIds.length} pending · ${allIds.length - pendingIds.length} complete
+                </p>
+                <button onclick="closeTaskList()" style="background:none; border:none; color:#888780; cursor:pointer; font-size:1.2rem; line-height:1;">&times;</button>
+            </div>
+            ${rows}
+            ${pendingIds.length > 0
+                ? `<button class="btn btn-success w-100 mt-3" onclick="enterWalkthrough(0)">Start from First Pending</button>`
+                : '<p class="text-center mt-3" style="color:#888780;">All tasks complete ✓</p>'}
+        `;
+        box.style.display = 'block';
+        box.style.left = '50%';
+        box.style.top = '50%';
+        box.style.transform = 'translate(-50%, -50%)';
+        box.style.width = '380px';
+    }
+
+    function closeTaskList() {
+        if (!walkthroughActive) {
+            document.getElementById('task-overlay').style.display = 'none';
+            document.getElementById('task-box').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
+    document.getElementById('tasks-toggle').addEventListener('click', () => {
+        if (walkthroughActive) {
+            exitWalkthrough();
+        } else {
+            openTaskList();
+        }
+    });
+
+    function updateShipmentTotal() {
+        let total = 0;
+        let hasAny = false;
+        document.querySelectorAll('[name="shipment_quantity[]"]').forEach(input => {
+            const val = parseFloat(input.value);
+            if (!isNaN(val)) { total += val; hasAny = true; }
+        });
+        document.getElementById('shipment-qty-total').textContent = hasAny ? total.toLocaleString() : '—';
+    }
+
+    function addShipmentRow() {
+        const tbody = document.getElementById('shipments-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm" name="booking_number[]" placeholder="Booking number"></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm" name="shipment_quantity[]" placeholder="0.00"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); updateShipmentTotal();">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('[name="shipment_quantity[]"]').addEventListener('input', updateShipmentTotal);
+    }
+
+    updateShipmentTotal();
+    recalculateBrokerAmounts();
+
+    const CACHE_KEY = 'contract_cache_' + {{ contract['salesorder_id'] | tojson }};
+
+    function serializeForm() {
+        const data = {};
+        document.querySelectorAll('form[method="POST"] input, form[method="POST"] select, form[method="POST"] textarea').forEach(el => {
+            if (el.name) data[el.name] = el.value;
+        });
+        return data;
+    }
+
+    function restoreForm() {
+        try {
+            const saved = sessionStorage.getItem(CACHE_KEY);
+            if (!saved) return;
+            const data = JSON.parse(saved);
+            Object.entries(data).forEach(([name, value]) => {
+                if (name.endsWith('[]')) return;
+                const el = document.querySelector(`form[method="POST"] [name="${name}"]`);
+                if (el) el.value = value;
+            });
+            document.getElementById('unsaved-banner').style.display = 'block';
+        } catch(e) {}
+    }
+
+    function clearCache() {
+        sessionStorage.removeItem(CACHE_KEY);
+    }
+
+    restoreForm();
+
+    let formDirty = false;
+    document.querySelectorAll('form[method="POST"] input, form[method="POST"] select, form[method="POST"] textarea').forEach(el => {
+        el.addEventListener('change', () => {
+            formDirty = true;
+            document.getElementById('unsaved-banner').style.display = 'block';
+            try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(serializeForm())); } catch(e) {}
+        });
+    });
+
+    document.querySelector('form[method="POST"]').addEventListener('submit', () => {
+        formDirty = false;
+        clearCache();
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        if (formDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    (function () {
+        const btn = document.getElementById('decline-btn');
+        let isDeclined = {{ 'true' if contract['is_declined'] else 'false' }};
+        const salesorderId = {{ contract['salesorder_id'] | tojson }};
+
+        btn.addEventListener('click', () => {
+            const msg = isDeclined
+                ? 'Reactivate this contract?'
+                : 'Mark this contract as declined? This can be undone.';
+            if (!confirm(msg)) return;
+
+            fetch(`/contracts/${salesorderId}/decline`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok) return;
+                    isDeclined = data.is_declined;
+                    if (isDeclined) {
+                        btn.textContent = 'Reactivate Contract';
+                        btn.classList.remove('btn-outline-danger');
+                        btn.classList.add('btn-outline-secondary');
+                        let banner = document.getElementById('declined-banner');
+                        if (!banner) {
+                            banner = document.createElement('div');
+                            banner.id = 'declined-banner';
+                            banner.innerHTML = '<div id="declined-banner-inner">DECLINED</div>';
+                            document.body.appendChild(banner);
+                        }
+                    } else {
+                        btn.textContent = 'Mark as Declined';
+                        btn.classList.remove('btn-outline-secondary');
+                        btn.classList.add('btn-outline-danger');
+                        const banner = document.getElementById('declined-banner');
+                        if (banner) banner.remove();
+                    }
+                });
+        });
+    })();
+</script>
 
 {% endblock %}
