@@ -178,14 +178,18 @@ def contracts():
     elif innetwork == '0':
         q = q.filter(Contract.in_network == False)  # noqa
 
-    contracts_list = q.order_by(Contract.date.desc()).all()
-
     filters = dict(number=number, buyer=buyer, seller=seller, commodity=commodity,
                    broker=broker, office=office, status=status, uom=uom,
                    transport=transport, innetwork=innetwork, date_from=date_from,
                    date_to=date_to, ship_from=ship_from, ship_to=ship_to)
 
-    return render_template('contracts.html', contracts=contracts_list, filters=filters)
+    any_filter = any(filters.values())
+    if any_filter:
+        contracts_list = q.order_by(Contract.date.desc()).all()
+    else:
+        contracts_list = q.order_by(Contract.date.desc()).limit(500).all()
+
+    return render_template('contracts.html', contracts=contracts_list, filters=filters, limited=not any_filter)
 
 
 @app.route('/tasks')
