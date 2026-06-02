@@ -128,13 +128,19 @@ def new_contract():
 @login_required
 def bulk_edit():
     contracts_list = Contract.query.order_by(Contract.date.desc()).all()
-    return render_template('bulk_edit.html', contracts=contracts_list)
+    customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
+    return render_template('bulk_edit.html', contracts=contracts_list, customers=customers)
 
 
 @app.route('/contracts')
 @login_required
 def contracts():
-    contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    if current_user.is_admin or not current_user.nationality:
+        contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    else:
+        contracts_list = Contract.query.filter(
+            Contract.location_name == current_user.nationality
+        ).order_by(Contract.date.desc()).all()
     return render_template('contracts.html', contracts=contracts_list)
 
 
@@ -236,7 +242,7 @@ def contract_detail(salesorder_id):
             'cf_uom': c.cf_uom,
             'cf_customer_ref': c.cf_customer_ref,
             'cf_co_broker': c.cf_co_broker,
-            'cf_co_brokerage_rate': c.cf_co_brokerage_rate,
+            'cf_co_brokerage_rate': c.cf_co_brokerage_rate if c.cf_co_brokerage_rate is not None else '',
             'cf_split_broker': c.cf_split_broker,
             'cf_split_percentage': c.cf_split_percentage,
             'cf_vessel_name': c.cf_vessel_name,
@@ -266,6 +272,21 @@ def contract_detail(salesorder_id):
                            tasks=tasks, meta=c, shipments=shipments,
                            commissions=commissions, notes=notes, employee_map=employee_map,
                            salesperson_employee=salesperson_employee)
+
+
+@app.route('/contracts/<salesorder_id>/tasks')
+@login_required
+def contract_tasks_json(salesorder_id):
+    tasks = Task.query.filter_by(
+        books_sales_order_id=salesorder_id
+    ).join(TaskTemplate).order_by(TaskTemplate.order).all()
+    return [{
+        'id': t.id,
+        'title': t.template.title,
+        'description': t.template.description,
+        'status': t.status,
+        'completed_at': t.completed_at.isoformat() if t.completed_at else None,
+    } for t in tasks]
 
 
 # endregion
@@ -382,7 +403,8 @@ def admin_create_user():
     if User.query.filter_by(email=email).first():
         flash(f'{email} already exists.', 'warning')
         return redirect('/admin/users')
-    db.session.add(User(email=email, display_name=display_name, role=role))  # noqa
+    nationality = request.form.get('nationality', '').strip() or None
+    db.session.add(User(email=email, display_name=display_name, role=role, nationality=nationality))  # noqa
     db.session.commit()
     flash(f'User {email} added.', 'success')
     return redirect('/admin/users')
@@ -403,6 +425,20 @@ def admin_update_user_role(user_id):
     user.role = new_role
     db.session.commit()
     flash(f'{user.email} role updated to {new_role}.', 'success')
+    return redirect('/admin/users')
+
+
+@app.route('/admin/users/<int:user_id>/nationality', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_user_nationality(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect('/admin/users')
+    user.nationality = request.form.get('nationality', '').strip() or None
+    db.session.commit()
+    flash(f'{user.email} nationality updated.', 'success')
     return redirect('/admin/users')
 
 
@@ -443,7 +479,24 @@ def submit_contract_route():
     form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
     booking_numbers = request.form.getlist('booking_number[]')
-    form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
+    shipment_quantities = request.form.getlist('shipment_quantity[]')
+    booking_parts = []
+    for b, q in zip(booking_numbers, shipment_quantities):
+        if b.strip():
+            booking_parts.append(f'{b}: {q}' if q.strip() else b)
+    form_data['booking_numbers_concat'] = ', '.join(booking_parts)
+
+    # Append any "request new" notes to delivery_notes
+    request_notes = []
+    if form_data.get('requested_item_name', '').strip():
+        request_notes.append(f'[REQUEST NEW ITEM: {form_data["requested_item_name"].strip()}]')
+    if form_data.get('requested_buyer_name', '').strip():
+        request_notes.append(f'[REQUEST NEW BUYER: {form_data["requested_buyer_name"].strip()}]')
+    if form_data.get('requested_seller_name', '').strip():
+        request_notes.append(f'[REQUEST NEW SELLER: {form_data["requested_seller_name"].strip()}]')
+    if request_notes:
+        existing_notes = form_data.get('delivery_notes', '').strip()
+        form_data['delivery_notes'] = chr(10).join(request_notes + ([existing_notes] if existing_notes else []))
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
@@ -509,7 +562,7 @@ def bulk_edit_save(salesorder_id):
         'quantity', 'commission_rate', 'seller_reference', 'shipping_date_end', 'contract_date',
         'uom', 'transportation', 'co_broker_name', 'vessel_name',
         'commodity_rate', 'co_brokerage_rate', 'delivery_notes', 'terms',
-        'buyer_reference', 'in_network', 'packing',
+        'buyer_reference', 'in_network', 'packing', 'buyer', 'seller',
     }
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
@@ -528,6 +581,23 @@ def bulk_edit_save(salesorder_id):
         db.session.commit()
         return {'ok': True}
 
+    if field in ('buyer', 'seller'):
+        customer = Customer.query.get(value)
+        if not customer:
+            return {'ok': False, 'error': 'Customer not found'}, 400
+        contract = zoho.get_sales_order(salesorder_id)
+        form_data = zoho.contract_to_form_data(contract)
+        if field == 'buyer':
+            form_data['buyer_name'] = customer.customer_name
+        else:
+            form_data['seller'] = customer.customer_id
+        result = zoho.update_contract(salesorder_id, form_data)
+        if result.get('code', 0) == 0:
+            zoho.upsert_contract_from_zoho(result['salesorder'])
+            return {'ok': True}
+        else:
+            return {'ok': False, 'error': result.get('message', 'Unknown error')}, 500
+
     contract = zoho.get_sales_order(salesorder_id)
     form_data = zoho.contract_to_form_data(contract)
     form_data[field] = value
@@ -540,7 +610,12 @@ def bulk_edit_save(salesorder_id):
         form_data['salesperson_employee_id'] = ''
 
     local_shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
-    form_data['booking_numbers_concat'] = ','.join(s.booking_number for s in local_shipments if s.booking_number)
+    booking_parts_bulk = []
+    for s in local_shipments:
+        if s.booking_number:
+            qty_str = str(int(s.quantity)) if s.quantity and s.quantity == int(s.quantity) else str(s.quantity) if s.quantity else ''
+            booking_parts_bulk.append(f'{s.booking_number}: {qty_str}' if qty_str else s.booking_number)
+    form_data['booking_numbers_concat'] = ', '.join(booking_parts_bulk)
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
@@ -567,7 +642,12 @@ def update_contract(salesorder_id):
     form_data['second_broker_percentage'] = broker_percentages[1] if len(broker_percentages) > 1 else ''
 
     booking_numbers = request.form.getlist('booking_number[]')
-    form_data['booking_numbers_concat'] = ','.join(b for b in booking_numbers if b.strip())
+    shipment_quantities_update = request.form.getlist('shipment_quantity[]')
+    booking_parts_update = []
+    for b, q in zip(booking_numbers, shipment_quantities_update):
+        if b.strip():
+            booking_parts_update.append(f'{b}: {q}' if q.strip() else b)
+    form_data['booking_numbers_concat'] = ', '.join(booking_parts_update)
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:

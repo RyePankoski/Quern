@@ -13,6 +13,7 @@
                 <tr>
                     <th>#</th>
                     <th>Name</th>
+                    <th>Address</th>
                     <th>City</th>
                     <th>State</th>
                     <th>Country</th>
@@ -28,6 +29,7 @@
                     data-address="{{ (customer.address or '') | lower }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ customer.customer_name }}{% if not customer.is_active %} <span class="badge bg-secondary ms-1">Inactive</span>{% endif %}</td>
+                    <td>{{ customer.address or '—' }}</td>
                     <td>{{ customer.city or '—' }}</td>
                     <td>{{ customer.state or '—' }}</td>
                     <td>{{ customer.country or '—' }}</td>

@@ -30,6 +30,10 @@
                 <option value="delivery_notes">Notes</option>
                 <option value="terms">Terms</option>
             </optgroup>
+            <optgroup label="Zoho Fields — Counterparties">
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+            </optgroup>
             <optgroup label="Local Fields">
                 <option value="buyer_reference">Buyer Reference #</option>
                 <option value="in_network">In Network</option>
@@ -40,7 +44,19 @@
 
     <div id="table-wrapper" style="display:none;">
 
-        <!-- Filter Bar -->
+        <!-- Universal Search -->
+        <div class="mb-2">
+            <input type="text" id="filter-universal" class="form-control form-control-sm" placeholder="Search contracts — number, buyer, seller, commodity, broker, office, vessel, reference…">
+        </div>
+
+        <!-- Advanced Filters toggle -->
+        <div class="mb-2">
+            <button type="button" class="btn btn-sm btn-link text-muted ps-0" id="advanced-toggle"
+                    style="font-size:0.8rem; text-decoration:none;">
+                ▸ Advanced Filters
+            </button>
+        </div>
+        <div id="advanced-filters" style="display:none;">
         <div class="row g-2 mb-2">
             <div class="col-6 col-md-2">
                 <input type="text" id="filter-number" class="form-control form-control-sm" placeholder="Contract #">
@@ -122,12 +138,17 @@
                 <input type="date" id="filter-ship-to" class="form-control form-control-sm">
             </div>
         </div>
+        </div><!-- /advanced-filters -->
 
         <!-- Apply All Bar -->
         <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded" style="background:#1e1e1c; border:1px solid #3a3a38;">
             <div class="form-check mb-0">
                 <input class="form-check-input" type="checkbox" id="select-all">
                 <label class="form-check-label text-muted" for="select-all">Select all visible</label>
+            </div>
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="filter-empty-only">
+                <label class="form-check-label text-muted" for="filter-empty-only">Show only empty</label>
             </div>
             <span id="selected-count" class="text-muted" style="font-size:0.85rem;">0 selected</span>
             <div id="apply-all-area" class="d-flex align-items-center gap-2 ms-auto" style="display:none !important;">
@@ -182,7 +203,9 @@
                         data-office="{{ (contract.location_name or '') | lower }}"
                         data-innetwork="{{ '1' if contract.in_network else '0' }}"
                         data-ship-start="{{ contract.shipment_date or '' }}"
-                        data-ship-end="{{ contract.cf_shipment_end_date or '' }}">
+                        data-ship-end="{{ contract.cf_shipment_end_date or '' }}"
+                        data-buyerid="{{ contract.cf_buyer_id or '' }}"
+                        data-sellerid="{{ contract.customer_id or '' }}">
                         <td class="text-center">
                             <input type="checkbox" class="form-check-input row-check">
                         </td>
@@ -208,6 +231,12 @@
 </div>
 
 <script>
+    const customerOptions = [
+        {% for c in customers %}
+        { id: {{ c.customer_id | tojson }}, name: {{ c.customer_name | tojson }} },
+        {% endfor %}
+    ];
+
     const fieldLabels = {
         vessel_name:      'Vessel Name',
         quantity:         'Quantity',
@@ -222,6 +251,8 @@
         co_brokerage_rate:'Co-Brokerage Rate',
         delivery_notes:   'Notes',
         terms:            'Terms',
+        buyer:            'Buyer',
+        seller:           'Seller',
         buyer_reference:  'Buyer Reference #',
         in_network:       'In Network',
         packing:          'Packing',
@@ -256,6 +287,7 @@
     // ── Filters ──────────────────────────────────────────────────────────────
 
     const filterIds = [
+        'filter-universal', 'filter-empty-only',
         'filter-number', 'filter-buyer', 'filter-seller', 'filter-commodity',
         'filter-broker', 'filter-office', 'filter-status', 'filter-uom',
         'filter-transport', 'filter-innetwork', 'filter-date-from', 'filter-date-to',
@@ -266,7 +298,17 @@
         updateSelectAllState();
     }));
 
+    // Advanced filters toggle
+    document.getElementById('advanced-toggle').addEventListener('click', function() {
+        const panel = document.getElementById('advanced-filters');
+        const open = panel.style.display !== 'none';
+        panel.style.display = open ? 'none' : 'block';
+        this.textContent = open ? '▸ Advanced Filters' : '▾ Advanced Filters';
+    });
+
     function applyFilters() {
+        const universal  = document.getElementById('filter-universal').value.toLowerCase();
+        const emptyOnly  = document.getElementById('filter-empty-only').checked;
         const number    = document.getElementById('filter-number').value.toLowerCase();
         const buyer     = document.getElementById('filter-buyer').value.toLowerCase();
         const seller    = document.getElementById('filter-seller').value.toLowerCase();
@@ -284,7 +326,11 @@
 
         allRows().forEach(row => {
             const d = row.dataset;
-            const show =
+            const allText = Object.values(d).join(' ').toLowerCase();
+            const universalMatch = !universal || allText.includes(universal);
+            const fieldVal = currentField ? (d[currentField] || '').trim() : '';
+            const emptyMatch = !emptyOnly || !fieldVal;
+            const show = universalMatch && emptyMatch &&
                 (!number    || d.number.includes(number)) &&
                 (!buyer     || d.buyer.includes(buyer)) &&
                 (!seller    || d.seller.includes(seller)) &&
@@ -321,7 +367,14 @@
 
     function makeInput(field, currentVal) {
         let input;
-        if (field === 'uom') {
+        if (field === 'buyer' || field === 'seller') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            input.innerHTML = '<option value="">-- Select --</option>' +
+                customerOptions.map(c =>
+                    `<option value="${c.id}" ${c.id === currentVal ? 'selected' : ''}>${c.name}</option>`
+                ).join('');
+        } else if (field === 'uom') {
             input = document.createElement('select');
             input.className = 'form-select form-select-sm';
             input.innerHTML = '<option value="">-- Select --</option>' +
@@ -388,6 +441,7 @@
 
     fieldSelect.addEventListener('change', () => {
         currentField = fieldSelect.value;
+        document.getElementById('filter-empty-only').checked = false;
         if (!currentField) {
             tableWrapper.style.display = 'none';
             return;
@@ -399,7 +453,8 @@
         allRows().forEach(row => {
             const valueCell = row.querySelector('.value-cell');
             const saveBtn   = row.querySelector('.save-btn');
-            const currentVal = row.dataset[currentField] || '';
+            const dataKey = currentField === 'buyer' ? 'buyerid' : currentField === 'seller' ? 'sellerid' : currentField;
+            const currentVal = row.dataset[dataKey] || '';
 
             valueCell.innerHTML = '';
             const input = makeInput(currentField, currentVal);
@@ -445,7 +500,8 @@
         .then(data => {
             if (data.ok) {
                 input.dataset.original = input.value;
-                row.dataset[field] = input.value;
+                const saveKey = field === 'buyer' ? 'buyerid' : field === 'seller' ? 'sellerid' : field;
+                row.dataset[saveKey] = input.value;
                 styleBtn(btn, 'saved');
                 setTimeout(() => styleBtn(btn, 'idle'), 1500);
             } else {
@@ -506,7 +562,8 @@
                 if (data.ok) {
                     if (input) {
                         input.dataset.original = value;
-                        row.dataset[currentField] = value;
+                        const saveKey = currentField === 'buyer' ? 'buyerid' : currentField === 'seller' ? 'sellerid' : currentField;
+                        row.dataset[saveKey] = value;
                     }
                     styleBtn(btn, 'saved');
                     setTimeout(() => styleBtn(btn, 'idle'), 1500);

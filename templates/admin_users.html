@@ -28,7 +28,11 @@
                             <option value="admin">Admin</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
+                        <label class="form-label">Office / Nationality <span class="text-muted" style="font-size:0.75rem;">(blank = sees all)</span></label>
+                        <input type="text" name="nationality" class="form-control" placeholder="e.g. Boulder, Calgary">
+                    </div>
+                    <div class="col-md-1">
                         <button type="submit" class="btn btn-success w-100">Add</button>
                     </div>
                 </div>
@@ -46,6 +50,7 @@
                         <th class="ps-3">Email</th>
                         <th>Display Name</th>
                         <th>Role</th>
+                        <th>Office / Nationality</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -71,6 +76,15 @@
                             {% endif %}
                         </form>
                     </td>
+                    <td class="align-middle">
+                        <form method="POST" action="/admin/users/{{ u.id }}/nationality"
+                              class="d-flex gap-2 align-items-center">
+                            <input type="text" name="nationality" class="form-control form-control-sm"
+                                   style="width:130px;" placeholder="blank = all"
+                                   value="{{ u.nationality or '' }}">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Save</button>
+                        </form>
+                    </td>
                     <td class="align-middle text-end pe-3">
                         {% if u.id != current_user.id %}
                         <form method="POST" action="/admin/users/{{ u.id }}/delete"
@@ -81,7 +95,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4" class="text-center text-muted py-4">No users found.</td></tr>
+                <tr><td colspan="5" class="text-center text-muted py-4">No users found.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

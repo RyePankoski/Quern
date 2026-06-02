@@ -347,7 +347,8 @@ def submit_contract(form_data):
             {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
             {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
-        ] if cf['value']
+            {"api_name": "cf_vessel_name",          "value": form_data.get('vessel_name')},
+        ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
         custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
@@ -418,7 +419,8 @@ def update_contract(salesorder_id, form_data):
             {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
             {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
-        ] if cf['value']
+            {"api_name": "cf_vessel_name",          "value": form_data.get('vessel_name')},
+        ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
         custom_fields.append({"api_name": "cf_split_broker", "value": second_broker_name})
@@ -457,8 +459,14 @@ def update_contract(salesorder_id, form_data):
         json=payload
     )
 
-    print(api_response.json())
-    return api_response.json()
+    response_token = api_response.json()
+    print(response_token)
+    # Re-fetch full detail so upsert has complete custom_fields and line_items
+    if response_token.get('code', 0) == 0:
+        full_detail = get_sales_order(salesorder_id)
+        if full_detail:
+            response_token['salesorder'] = full_detail
+    return response_token
 
 
 def upsert_contract_from_zoho(detail):
@@ -593,6 +601,7 @@ def contract_to_form_data(contract):
         'seller_reference': custom.get('cf_customer_ref', ''),
         'co_broker_name': custom.get('cf_co_broker', ''),
         'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
+        'vessel_name': custom.get('cf_vessel_name', ''),
         'shipping_date_end': custom.get('cf_shipment_end_date', ''),
         'location_id': contract.get('location_id', ''),
         'location_name': contract.get('location_name', ''),
