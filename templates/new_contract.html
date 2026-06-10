@@ -27,7 +27,6 @@
                                 {{ customer.customer_name }}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
                             </option>
                             {% endfor %}
-                            <option value="__request_new__">+ Request New Buyer…</option>
                         </select>
                         <div id="request-buyer-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_buyer_name"
@@ -44,7 +43,6 @@
                                 {{ customer.customer_name }}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
                             </option>
                             {% endfor %}
-                            <option value="__request_new__">+ Request New Seller…</option>
                         </select>
                         <div id="request-seller-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_seller_name"
@@ -52,16 +50,16 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Seller Reference Number</label>
-                        <input type="text" class="form-control" name="seller_reference"
-                               placeholder="Enter reference number"
-                               value="{{ prefill.seller_reference if prefill else '' }}">
-                    </div>
-                    <div class="col-md-6">
                         <label class="form-label">Buyer Reference Number</label>
                         <input type="text" class="form-control" name="buyer_reference"
                                placeholder="Enter buyer reference number"
                                value="">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Seller Reference Number</label>
+                        <input type="text" class="form-control" name="seller_reference"
+                               placeholder="Enter reference number"
+                               value="{{ prefill.seller_reference if prefill else '' }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity</label>
@@ -73,7 +71,6 @@
                                 {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
                             </option>
                             {% endfor %}
-                            <option value="__request_new__">+ Request New Item…</option>
                         </select>
                         <div id="request-item-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_item_name"
@@ -530,17 +527,20 @@
 
     function isRequestNew(selectEl) {
         const text = selectEl.options[selectEl.selectedIndex]?.text || '';
-        return text.toLowerCase().includes('request new');
+        return text.toLowerCase().includes('request');
     }
 
     function wireRequestDetection(selectId, wrapId) {
         const sel = document.getElementById(selectId);
         const wrap = document.getElementById(wrapId);
         if (!sel || !wrap) return;
-        sel.addEventListener('change', () => {
-            wrap.style.display = isRequestNew(sel) ? 'block' : 'none';
-            if (!isRequestNew(sel)) wrap.querySelector('input').value = '';
-        });
+        const sync = () => {
+            const show = isRequestNew(sel);
+            wrap.style.display = show ? 'block' : 'none';
+            if (!show) wrap.querySelector('input').value = '';
+        };
+        sel.addEventListener('change', sync);
+        sync();  // reflect initial selection (e.g. duplicate prefill)
     }
 
     wireRequestDetection('commodity-select', 'request-item-wrap');
