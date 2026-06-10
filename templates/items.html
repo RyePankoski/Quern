@@ -3,8 +3,13 @@
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Items</h2>
 
-    <div class="mb-3" style="max-width: 320px;">
+    <div class="mb-3 d-flex gap-2" style="max-width: 540px;">
         <input type="text" id="filter-item" class="form-control form-control-sm" placeholder="Search items...">
+        <select id="filter-active" class="form-select form-select-sm" style="max-width:200px;">
+            <option value="">All</option>
+            <option value="active">Hide inactives</option>
+            <option value="inactive">Only inactives</option>
+        </select>
     </div>
 
     <div class="table-responsive">
@@ -25,7 +30,8 @@
                     data-name="{{ item.item_name | lower }}"
                     data-description="{{ (item.description or '') | lower }}"
                     data-origin="{{ (item.origin or '') | lower }}"
-                    data-pnl="{{ (item.pnl_group or '') | lower }}">
+                    data-pnl="{{ (item.pnl_group or '') | lower }}"
+                    data-active="{{ 'true' if item.is_active else 'false' }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ item.item_name }}</td>
                     <td>{{ item.description or '—' }}</td>
@@ -40,13 +46,21 @@
 </div>
 
 <script>
-    document.getElementById('filter-item').addEventListener('input', function () {
-        const q = this.value.toLowerCase();
+    function applyFilters() {
+        const q = document.getElementById('filter-item').value.toLowerCase();
+        const active = document.getElementById('filter-active').value;
         document.querySelectorAll('#items-tbody tr').forEach(row => {
-            const match = !q || row.dataset.name.includes(q) || row.dataset.description.includes(q)
+            const matchText = !q || row.dataset.name.includes(q) || row.dataset.description.includes(q)
                             || row.dataset.origin.includes(q) || row.dataset.pnl.includes(q);
-            row.style.display = match ? '' : 'none';
+            const matchActive = !active
+                || (active === 'active' && row.dataset.active === 'true')
+                || (active === 'inactive' && row.dataset.active === 'false');
+            row.style.display = (matchText && matchActive) ? '' : 'none';
         });
+    }
+
+    ['filter-item', 'filter-active'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyFilters);
     });
 </script>
 {% endblock %}
