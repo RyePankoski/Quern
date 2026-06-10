@@ -36,7 +36,6 @@
             </optgroup>
             <optgroup label="Local Fields">
                 <option value="buyer_reference">Buyer Reference #</option>
-                <option value="in_network">In Network</option>
                 <option value="packing">Packing</option>
             </optgroup>
         </select>
@@ -45,8 +44,12 @@
     <div id="table-wrapper" style="display:none;">
 
         <!-- Universal Search -->
-        <div class="mb-2">
-            <input type="text" id="filter-universal" class="form-control form-control-sm" placeholder="Search contracts — number, buyer, seller, commodity, broker, office, vessel, reference…">
+        <div class="mb-2 d-flex align-items-center gap-3">
+            <input type="text" id="filter-universal" class="form-control form-control-sm flex-grow-1" placeholder="Search contracts — number, buyer, seller, commodity, broker, office, vessel, reference…">
+            <div class="form-check mb-0 flex-shrink-0">
+                <input class="form-check-input" type="checkbox" id="filter-exact">
+                <label class="form-check-label text-muted" for="filter-exact" style="font-size:0.8rem; white-space:nowrap;">Exact match</label>
+            </div>
         </div>
 
         <!-- Advanced Filters toggle -->
@@ -112,13 +115,6 @@
                     <option>Paper</option>
                     <option>Freight</option>
                     <option>Other</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select id="filter-innetwork" class="form-select form-select-sm">
-                    <option value="">In Network: All</option>
-                    <option value="1">In Network</option>
-                    <option value="0">Not In Network</option>
                 </select>
             </div>
             <div class="col-6 col-md-1">
@@ -191,7 +187,6 @@
                         data-delivery_notes="{{ contract.notes or '' }}"
                         data-terms="{{ contract.terms or '' }}"
                         data-buyer_reference="{{ contract.buyer_reference or '' }}"
-                        data-in_network="{{ 'true' if contract.in_network else 'false' }}"
                         data-packing="{{ contract.packing or '' }}"
                         data-number="{{ contract.salesorder_number | lower }}"
                         data-buyer="{{ (contract.cf_buyer or '') | lower }}"
@@ -201,11 +196,11 @@
                         data-commodity="{{ (contract.item_name or '') | lower }}"
                         data-broker="{{ (contract.salesperson_name or '') | lower }}"
                         data-office="{{ (contract.location_name or '') | lower }}"
-                        data-innetwork="{{ '1' if contract.in_network else '0' }}"
                         data-ship-start="{{ contract.shipment_date or '' }}"
                         data-ship-end="{{ contract.cf_shipment_end_date or '' }}"
                         data-buyerid="{{ contract.cf_buyer_id or '' }}"
-                        data-sellerid="{{ contract.customer_id or '' }}">
+                        data-sellerid="{{ contract.customer_id or '' }}"
+                        data-raw="{{ [contract.salesorder_number, contract.cf_buyer, contract.customer_name, contract.item_name, contract.salesperson_name, contract.location_name, contract.cf_vessel_name, contract.cf_customer_ref, contract.buyer_reference] | select | join('|') }}">
                         <td class="text-center">
                             <input type="checkbox" class="form-check-input row-check">
                         </td>
@@ -254,7 +249,6 @@
         buyer:            'Buyer',
         seller:           'Seller',
         buyer_reference:  'Buyer Reference #',
-        in_network:       'In Network',
         packing:          'Packing',
     };
 
@@ -287,10 +281,10 @@
     // ── Filters ──────────────────────────────────────────────────────────────
 
     const filterIds = [
-        'filter-universal', 'filter-empty-only',
+        'filter-universal', 'filter-exact', 'filter-empty-only',
         'filter-number', 'filter-buyer', 'filter-seller', 'filter-commodity',
         'filter-broker', 'filter-office', 'filter-status', 'filter-uom',
-        'filter-transport', 'filter-innetwork', 'filter-date-from', 'filter-date-to',
+        'filter-transport', 'filter-date-from', 'filter-date-to',
         'filter-ship-from', 'filter-ship-to'
     ];
     filterIds.forEach(id => document.getElementById(id).addEventListener('input', () => {
@@ -307,7 +301,9 @@
     });
 
     function applyFilters() {
-        const universal  = document.getElementById('filter-universal').value.toLowerCase();
+        const exact        = document.getElementById('filter-exact').checked;
+        const universalRaw = document.getElementById('filter-universal').value;
+        const universal    = universalRaw.toLowerCase();
         const emptyOnly  = document.getElementById('filter-empty-only').checked;
         const number    = document.getElementById('filter-number').value.toLowerCase();
         const buyer     = document.getElementById('filter-buyer').value.toLowerCase();
@@ -318,7 +314,6 @@
         const status    = document.getElementById('filter-status').value.toLowerCase();
         const uom       = document.getElementById('filter-uom').value.toLowerCase();
         const transport = document.getElementById('filter-transport').value.toLowerCase();
-        const innetwork = document.getElementById('filter-innetwork').value;
         const dateFrom  = document.getElementById('filter-date-from').value;
         const dateTo    = document.getElementById('filter-date-to').value;
         const shipFrom  = document.getElementById('filter-ship-from').value;
@@ -327,7 +322,10 @@
         allRows().forEach(row => {
             const d = row.dataset;
             const allText = Object.values(d).join(' ').toLowerCase();
-            const universalMatch = !universal || allText.includes(universal);
+            const universalMatch = !universalRaw
+                || (exact
+                    ? (d.raw || '').split('|').some(v => v.trim() === universalRaw.trim())
+                    : allText.includes(universal));
             const fieldVal = currentField ? (d[currentField] || '').trim() : '';
             const emptyMatch = !emptyOnly || !fieldVal;
             const show = universalMatch && emptyMatch &&
@@ -340,7 +338,6 @@
                 (!status    || d.status === status) &&
                 (!uom       || d.uom === uom) &&
                 (!transport || d.transport === transport) &&
-                (!innetwork || d.innetwork === innetwork) &&
                 (!dateFrom  || d.date >= dateFrom) &&
                 (!dateTo    || d.date <= dateTo) &&
                 (!shipFrom  || (d.shipStart && d.shipStart >= shipFrom)) &&
@@ -384,12 +381,6 @@
             input.className = 'form-select form-select-sm';
             input.innerHTML = '<option value="">-- Select --</option>' +
                 transportationOptions.map(o => `<option value="${o}" ${o === currentVal ? 'selected' : ''}>${o}</option>`).join('');
-        } else if (field === 'in_network') {
-            input = document.createElement('select');
-            input.className = 'form-select form-select-sm';
-            input.innerHTML = '<option value="">-- Select --</option>' +
-                [['true','In Network'],['false','Not In Network']].map(([v,l]) =>
-                    `<option value="${v}" ${v === currentVal ? 'selected' : ''}>${l}</option>`).join('');
         } else if (field === 'packing') {
             input = document.createElement('select');
             input.className = 'form-select form-select-sm';

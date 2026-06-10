@@ -239,6 +239,19 @@
                 <h5 class="mb-0">Broker Team</h5>
             </div>
             <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">PIC</label>
+                        <select class="form-select" name="pic_employee_id">
+                            <option value="">-- Select --</option>
+                            {% for emp in active_employees %}
+                            <option value="{{ emp.employee_id }}" {% if meta and meta.pic_employee_id == emp.employee_id %}selected{% endif %}>
+                                {{ emp.employee_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Co Broker Name</label>
@@ -369,30 +382,6 @@
             </div>
         </div>
 
-        <!-- Shipments and Status -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Shipments and Status</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Network</label>
-                        <select class="form-select" name="in_network">
-                            <option value="">-- Select --</option>
-                            <option value="true" {% if meta and meta.in_network == True %}selected{% endif %}>In Network</option>
-                            <option value="false" {% if meta and meta.in_network == False %}selected{% endif %}>Out of Network</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Salesperson</label>
-                        <input type="text" class="form-control" value="{{ contract.get('salesperson_name', '') }}"
-                               readonly>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Submit -->
         <div class="d-flex gap-2 justify-content-end mb-5">
             <a href="/contracts" class="btn btn-outline-secondary">Cancel</a>
@@ -440,16 +429,19 @@
 
 </div>
 
-<button id="tasks-toggle" class="btn btn-success"
-        style="position:fixed; bottom:2rem; left:2rem; z-index:3500; padding: 0.75rem 1.5rem;">
-    Tasks ({{ tasks | selectattr('status', 'equalto', 'pending') | list | length }})
-</button>
+<div class="container pb-5">
+    <div class="d-flex gap-2">
+        <button id="tasks-toggle" class="btn btn-success" style="padding: 0.75rem 1.5rem;">
+            Tasks ({{ tasks | selectattr('status', 'equalto', 'pending') | list | length }})
+        </button>
 
-<button id="decline-btn"
-        style="position:fixed; bottom:2rem; left:calc(2rem + 130px); z-index:3500; padding:0.75rem 1.5rem;"
-        class="btn {% if contract['is_declined'] %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}">
-    {% if contract['is_declined'] %}Reactivate Contract{% else %}Mark as Declined{% endif %}
-</button>
+        <button id="decline-btn"
+                style="padding:0.75rem 1.5rem;"
+                class="btn {% if contract['is_declined'] %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}">
+            {% if contract['is_declined'] %}Reactivate Contract{% else %}Mark as Declined{% endif %}
+        </button>
+    </div>
+</div>
 
 {% if contract['is_declined'] %}
 <div id="declined-banner">
@@ -498,8 +490,8 @@
             <td>
                 <select class="form-select form-select-sm" name="broker_employee[]">
                     <option value="">-- Select Employee --</option>
-                    {% for employee in employees %}
-                    <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
+                    {% for emp_id, emp_name in employee_map.items() %}
+                    <option value="{{ emp_id }}">{{ emp_name }}</option>
                     {% endfor %}
                 </select>
             </td>

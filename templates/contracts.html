@@ -24,6 +24,20 @@
 
     <!-- Filter Bar -->
     <form method="GET" action="/contracts" id="filter-form">
+        <!-- Universal Search -->
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-md-9">
+                <input type="text" name="q" class="form-control form-control-sm"
+                       placeholder="Search — number, buyer, seller, commodity, broker, office, vessel, reference…"
+                       value="{{ filters.q }}">
+            </div>
+            <div class="col-12 col-md-3 d-flex align-items-center">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="exact" value="1" id="filter-exact" {% if exact %}checked{% endif %}>
+                    <label class="form-check-label text-muted" for="filter-exact" style="font-size:0.8rem;">Exact match (whole value)</label>
+                </div>
+            </div>
+        </div>
         <div class="row g-2 mb-2">
             <div class="col-6 col-md-2">
                 <input type="text" name="number" class="form-control form-control-sm" placeholder="Contract #"
@@ -66,13 +80,6 @@
                     {% for u in ['metric tons','bushels','short tons','lbs','cars','consulting','other'] %}
                     <option value="{{ u }}" {% if filters.uom == u %}selected{% endif %}>{{ u }}</option>
                     {% endfor %}
-                </select>
-            </div>
-            <div class="col-6 col-md-2">
-                <select name="innetwork" class="form-select form-select-sm">
-                    <option value="">In Network: All</option>
-                    <option value="1" {% if filters.innetwork == '1' %}selected{% endif %}>In Network</option>
-                    <option value="0" {% if filters.innetwork == '0' %}selected{% endif %}>Not In Network</option>
                 </select>
             </div>
             <div class="col-6 col-md-2">
@@ -150,7 +157,7 @@
     });
 
     // Immediate submit on select/date change
-    document.querySelectorAll('#filter-form select, #filter-form input[type="date"]').forEach(el => {
+    document.querySelectorAll('#filter-form select, #filter-form input[type="date"], #filter-form input[type="checkbox"]').forEach(el => {
         el.addEventListener('change', () => {
             document.getElementById('filter-form').submit();
         });

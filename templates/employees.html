@@ -2,7 +2,7 @@
 {% block content %}
 <div class="container py-4">
     <h2 class="fw-semibold mb-4">Employees</h2>
-    <p class="text-muted" style="font-size:0.85rem;">Click an office cell to edit it. Click the Active toggle to mark an employee inactive.</p>
+    <p class="text-muted" style="font-size:0.85rem;">{% if current_user.is_admin %}Click an office cell to edit it. {% endif %}Click the Active toggle to mark an employee inactive.</p>
 
     <!-- Filter Bar -->
     <div class="row g-2 mb-3">
@@ -48,12 +48,16 @@
                     <td>{{ loop.index }}</td>
                     <td>{{ employee.employee_name }}</td>
                     <td>{{ employee.position or '—' }}</td>
+                    {% if current_user.is_admin %}
                     <td class="office-cell"
                         data-id="{{ employee.employee_id }}"
                         data-value="{{ employee.office or '' }}"
                         style="cursor:pointer; min-width:140px;">
                         <span class="office-display">{{ employee.office or '—' }}</span>
                     </td>
+                    {% else %}
+                    <td style="min-width:140px;">{{ employee.office or '—' }}</td>
+                    {% endif %}
                     <td class="d-none d-md-table-cell">{{ employee.email or '—' }}</td>
                     <td class="text-center active-cell"
                         data-id="{{ employee.employee_id }}"

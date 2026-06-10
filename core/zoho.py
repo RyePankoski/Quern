@@ -378,9 +378,6 @@ def submit_contract(form_data):
         "custom_fields": custom_fields,
     }
 
-    if salesperson_name:
-        payload["salesperson_name"] = salesperson_name
-
     api_response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
         headers={"Authorization": f"Zoho-oauthtoken {coin}"},
@@ -448,9 +445,6 @@ def update_contract(salesorder_id, form_data):
         ],
         "custom_fields": custom_fields,
     }
-
-    if salesperson_name:
-        payload["salesperson_name"] = salesperson_name
 
     api_response = requests.put(
         f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
