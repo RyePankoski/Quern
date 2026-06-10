@@ -32,6 +32,14 @@
             <input type="text" id="filter-office" class="form-control form-control-sm" placeholder="Office">
         </div>
         <div class="col-6 col-md-3">
+            <select id="filter-pic" class="form-select form-select-sm">
+                <option value="">All PICs</option>
+                {% for emp in active_employees %}
+                <option value="{{ emp.employee_id }}">{{ emp.employee_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-6 col-md-3">
             <select id="filter-pending" class="form-select form-select-sm">
                 <option value="">All Contracts</option>
                 <option value="pending">Pending Only</option>
@@ -46,6 +54,7 @@
              style="background-color:#242422; border:1px solid #3a3a38; border-radius:6px; margin-bottom:6px;"
              data-number="{{ item['salesorder_number'] | lower }}"
              data-office="{{ item.get('location_name', '') | lower }}"
+             data-pic="{{ item['pic_id'] }}"
              data-pending="{{ item['pending'] }}">
 
             <!-- Header row — click to expand -->
@@ -56,6 +65,9 @@
                     <span style="font-weight:500; color:#d3d1c7;">{{ item['salesorder_number'] }}</span>
                     {% if item.get('location_name') %}
                     <span style="color:#888780; font-size:0.8rem; margin-left:0.5rem;">{{ item['location_name'] }}</span>
+                    {% endif %}
+                    {% if item.get('pic_name') %}
+                    <span style="color:#888780; font-size:0.8rem; margin-left:0.5rem;">PIC: {{ item['pic_name'] }}</span>
                     {% endif %}
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -167,17 +179,19 @@
     function applyFilters() {
         const number = document.getElementById('filter-number').value.toLowerCase();
         const office = document.getElementById('filter-office').value.toLowerCase();
+        const pic = document.getElementById('filter-pic').value;
         const pendingOnly = document.getElementById('filter-pending').value === 'pending';
 
         document.querySelectorAll('.task-item').forEach(item => {
             const matchNumber = !number || item.dataset.number.includes(number);
             const matchOffice = !office || item.dataset.office.includes(office);
+            const matchPic = !pic || item.dataset.pic === pic;
             const matchPending = !pendingOnly || parseInt(item.dataset.pending) > 0;
-            item.style.display = (matchNumber && matchOffice && matchPending) ? '' : 'none';
+            item.style.display = (matchNumber && matchOffice && matchPic && matchPending) ? '' : 'none';
         });
     }
 
-    ['filter-number', 'filter-office', 'filter-pending'].forEach(id => {
+    ['filter-number', 'filter-office', 'filter-pic', 'filter-pending'].forEach(id => {
         document.getElementById(id).addEventListener('input', applyFilters);
     });
 </script>

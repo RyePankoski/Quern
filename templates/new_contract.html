@@ -27,6 +27,7 @@
                                 {{ customer.customer_name }}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
                             </option>
                             {% endfor %}
+                            <option value="__request_new__">+ Request New Buyer…</option>
                         </select>
                         <div id="request-buyer-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_buyer_name"
@@ -43,6 +44,7 @@
                                 {{ customer.customer_name }}{% if customer.address or customer.city %} — {{ [customer.address, customer.city, customer.state, customer.country] | select | join(', ') }}{% endif %}
                             </option>
                             {% endfor %}
+                            <option value="__request_new__">+ Request New Seller…</option>
                         </select>
                         <div id="request-seller-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_seller_name"
@@ -71,6 +73,7 @@
                                 {{ item.item_name }}{% if item.description %} — {{ item.description }}{% endif %}
                             </option>
                             {% endfor %}
+                            <option value="__request_new__">+ Request New Item…</option>
                         </select>
                         <div id="request-item-wrap" style="display:none; margin-top:0.5rem;">
                             <input type="text" class="form-control" name="requested_item_name"
@@ -202,6 +205,32 @@
             </div>
             <div class="card-body">
                 <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">PIC</label>
+                        <select class="form-select" name="pic_employee_id">
+                            <option value="">-- Select --</option>
+                            {% for emp in employees %}
+                            <option value="{{ emp.employee_id }}">{{ emp.employee_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Office <span style="color:#888780; font-size:0.75rem;">(set by first broker)</span></label>
+                        <select class="form-select" name="location_id" id="location_select" disabled>
+                            <option value="">-- Set by broker --</option>
+                            {% for location in locations %}
+                            <option value="{{ location['branch_id'] }}"
+                                    data-name="{{ location['branch_name'] }}"
+                                    {% if prefill and prefill.get('location_id') == location['branch_id'] %}selected{% endif %}>
+                                {{ location['branch_name'] }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="location_id" id="location_id_hidden">
+                        <input type="hidden" name="location_name" id="location_name">
+                    </div>
+                </div>
+                <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Co Broker Name</label>
                         <input type="text" class="form-control" name="co_broker_name"
@@ -256,40 +285,6 @@
                     <span id="shipment-qty-total" style="font-size:0.85rem; font-weight:600;">—</span>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addShipmentRow()">+ Add Shipment</button>
-            </div>
-        </div>
-
-        <!-- Shipments and Status -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Shipments and Status</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">Office <span style="color:#888780; font-size:0.75rem;">(set by first broker)</span></label>
-                        <select class="form-select" name="location_id" id="location_select" disabled>
-                            <option value="">-- Set by broker --</option>
-                            {% for location in locations %}
-                            <option value="{{ location['branch_id'] }}"
-                                    data-name="{{ location['branch_name'] }}"
-                                    {% if prefill and prefill.get('location_id') == location['branch_id'] %}selected{% endif %}>
-                                {{ location['branch_name'] }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <input type="hidden" name="location_id" id="location_id_hidden">
-                        <input type="hidden" name="location_name" id="location_name">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Network</label>
-                        <select class="form-select" name="in_network">
-                            <option value="">-- Select --</option>
-                            <option value="true">In Network</option>
-                            <option value="false">Out of Network</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 

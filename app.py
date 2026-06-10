@@ -40,6 +40,25 @@ def admin_required(f):
     return decorated
 
 
+def _contracts_user_is_on():
+    """Sales-order IDs where the current user is on the broker team or is the PIC.
+    Used to let brokers see their own contracts regardless of nationality."""
+    from sqlalchemy import func
+    if current_user.is_admin:
+        return set()
+    email = (current_user.email or '').lower()
+    if not email:
+        return set()
+    emp = Employee.query.filter(func.lower(Employee.email) == email).first()
+    if not emp:
+        return set()
+    ids = {bc.books_sales_order_id
+           for bc in BrokerCommission.query.filter_by(employee_id=emp.employee_id).all()}
+    ids |= {c.salesorder_id
+            for c in Contract.query.filter_by(pic_employee_id=emp.employee_id).all()}
+    return ids
+
+
 # region Tabs/Pages
 @app.route('/')
 @login_required
@@ -137,9 +156,17 @@ def bulk_edit():
 def contracts():
     q = Contract.query
 
-    # Nationality filter
+    # Nationality filter — brokers also see contracts they're on, regardless of nationality
     if not current_user.is_admin and current_user.nationality:
-        q = q.filter(Contract.location_name == current_user.nationality)
+        own_ids = _contracts_user_is_on()
+        if own_ids:
+            from sqlalchemy import or_
+            q = q.filter(or_(
+                Contract.location_name == current_user.nationality,
+                Contract.salesorder_id.in_(own_ids)
+            ))
+        else:
+            q = q.filter(Contract.location_name == current_user.nationality)
 
     # Text filters
     number    = request.args.get('number', '').strip()
@@ -151,11 +178,12 @@ def contracts():
     status    = request.args.get('status', '').strip()
     uom       = request.args.get('uom', '').strip()
     transport = request.args.get('transport', '').strip()
-    innetwork = request.args.get('innetwork', '').strip()
     date_from = request.args.get('date_from', '').strip()
     date_to   = request.args.get('date_to', '').strip()
     ship_from = request.args.get('ship_from', '').strip()
     ship_to   = request.args.get('ship_to', '').strip()
+    universal = request.args.get('q', '').strip()
+    exact     = request.args.get('exact', '').strip()
 
     if number:    q = q.filter(Contract.salesorder_number.ilike(f'%{number}%'))
     if buyer:     q = q.filter(Contract.cf_buyer.ilike(f'%{buyer}%'))
@@ -173,15 +201,22 @@ def contracts():
         q = q.filter(Contract.is_declined == True)  # noqa
     elif status:
         q = q.filter(Contract.status == status)
-    if innetwork == '1':
-        q = q.filter(Contract.in_network == True)   # noqa
-    elif innetwork == '0':
-        q = q.filter(Contract.in_network == False)  # noqa
+
+    if universal:
+        from sqlalchemy import or_
+        _ucols = [Contract.salesorder_number, Contract.cf_buyer, Contract.customer_name,
+                  Contract.item_name, Contract.salesperson_name, Contract.location_name,
+                  Contract.cf_vessel_name, Contract.cf_customer_ref, Contract.buyer_reference]
+        if exact:
+            q = q.filter(or_(*[c == universal for c in _ucols]))
+        else:
+            q = q.filter(or_(*[c.ilike(f'%{universal}%') for c in _ucols]))
 
     filters = dict(number=number, buyer=buyer, seller=seller, commodity=commodity,
                    broker=broker, office=office, status=status, uom=uom,
-                   transport=transport, innetwork=innetwork, date_from=date_from,
-                   date_to=date_to, ship_from=ship_from, ship_to=ship_to)
+                   transport=transport, date_from=date_from,
+                   date_to=date_to, ship_from=ship_from, ship_to=ship_to,
+                   q=universal)
 
     any_filter = any(filters.values())
     if any_filter:
@@ -189,7 +224,7 @@ def contracts():
     else:
         contracts_list = q.order_by(Contract.date.desc()).limit(500).all()
 
-    return render_template('contracts.html', contracts=contracts_list, filters=filters, limited=not any_filter)
+    return render_template('contracts.html', contracts=contracts_list, filters=filters, exact=exact, limited=not any_filter)
 
 
 @app.route('/tasks')
@@ -203,20 +238,33 @@ def tasks_view():
     ).group_by(Task.books_sales_order_id).all()
 
     contract_map = {c.salesorder_id: c for c in Contract.query.all()}
+    emp_map = {e.employee_id: e.employee_name for e in Employee.query.all()}
+
+    # Nationality filter — same gating as the all-contracts view; brokers also see contracts they're on
+    restrict = (not current_user.is_admin) and current_user.nationality
+    own_ids = _contracts_user_is_on() if restrict else set()
 
     task_list = []
     for row in task_counts:
         contract = contract_map.get(row.books_sales_order_id)
+        if restrict and not (contract and (
+                contract.location_name == current_user.nationality
+                or contract.salesorder_id in own_ids)):
+            continue
+        pic_id = contract.pic_employee_id if contract else ''
         task_list.append({
             'salesorder_id': row.books_sales_order_id,
             'salesorder_number': contract.salesorder_number if contract else row.books_sales_order_id,
             'location_name': contract.location_name if contract else '',
+            'pic_id': pic_id or '',
+            'pic_name': emp_map.get(pic_id, '') if pic_id else '',
             'total': row.total,
             'pending': row.pending
         })
 
     task_list.sort(key=lambda x: x['pending'], reverse=True)
-    return render_template('tasks.html', task_list=task_list)
+    active_employees = Employee.query.filter_by(is_active=True).order_by(Employee.employee_name).all()
+    return render_template('tasks.html', task_list=task_list, active_employees=active_employees)
 
 
 @app.route('/dashboard')
@@ -233,6 +281,8 @@ def dashboard():
 @app.route('/employees/<employee_id>/office', methods=['POST'])
 @login_required
 def update_employee_office(employee_id):
+    if not current_user.is_admin:
+        return {'ok': False, 'error': 'Admin only'}, 403
     employee = Employee.query.get(employee_id)
     if not employee:
         return {'ok': False, 'error': 'Employee not found'}, 404
@@ -324,6 +374,7 @@ def contract_detail(salesorder_id):
     notes = ContractNote.query.filter_by(books_sales_order_id=salesorder_id).order_by(ContractNote.created_at).all()
     employees = Employee.query.all()
     employee_map = {e.employee_id: e.employee_name for e in employees}
+    active_employees = [e for e in employees if e.is_active]
 
     salesperson_employee = next(
         (e for e in employees if e.salesperson_id == c.salesperson_id), None
@@ -333,6 +384,7 @@ def contract_detail(salesorder_id):
                            contract=contract, customers=customers, items=items,
                            tasks=tasks, meta=c, shipments=shipments,
                            commissions=commissions, notes=notes, employee_map=employee_map,
+                           active_employees=active_employees,
                            salesperson_employee=salesperson_employee)
 
 
@@ -571,9 +623,8 @@ def submit_contract_route():
         generate_tasks(salesorder_id, country=office)
 
         meta = Contract.query.get(salesorder_id)
-        in_network_val = request.form.get('in_network')
-        meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
+        meta.pic_employee_id = request.form.get('pic_employee_id') or None
 
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
@@ -624,20 +675,18 @@ def bulk_edit_save(salesorder_id):
         'quantity', 'commission_rate', 'seller_reference', 'shipping_date_end', 'contract_date',
         'uom', 'transportation', 'co_broker_name', 'vessel_name',
         'commodity_rate', 'co_brokerage_rate', 'delivery_notes', 'terms',
-        'buyer_reference', 'in_network', 'packing', 'buyer', 'seller',
+        'buyer_reference', 'packing', 'buyer', 'seller',
     }
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
-    if field in ('buyer_reference', 'in_network', 'packing'):
+    if field in ('buyer_reference', 'packing'):
         meta = Contract.query.get(salesorder_id)
         if not meta:
             meta = Contract(salesorder_id=salesorder_id)
             db.session.add(meta)
         if field == 'buyer_reference':
             meta.buyer_reference = value.strip() or None
-        elif field == 'in_network':
-            meta.in_network = True if value == 'true' else False if value == 'false' else None
         elif field == 'packing':
             meta.packing = value.strip() or None
         db.session.commit()
@@ -718,9 +767,8 @@ def update_contract(salesorder_id):
         zoho.upsert_contract_from_zoho(result['salesorder'])
 
         meta = Contract.query.get(salesorder_id)
-        in_network_val = request.form.get('in_network')
-        meta.in_network = True if in_network_val == 'true' else False if in_network_val == 'false' else None
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
+        meta.pic_employee_id = request.form.get('pic_employee_id') or None
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')
@@ -1171,17 +1219,13 @@ def _export_contracts_xlsx():
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.utils import get_column_letter
 
-    if current_user.is_admin or not current_user.nationality:
-        contracts_list = Contract.query.order_by(Contract.date.desc()).all()
-    else:
-        contracts_list = Contract.query.filter(
-            Contract.location_name == current_user.nationality
-        ).order_by(Contract.date.desc()).all()
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'Contracts'
+    q = Contract.query
+    if not (current_user.is_admin or not current_user.nationality):
+        q = q.filter(Contract.location_name == current_user.nationality)
+    q = q.order_by(Contract.date.desc())
 
     headers = [
         'Contract #', 'Date', 'Status', 'Seller', 'Buyer',
@@ -1189,19 +1233,37 @@ def _export_contracts_xlsx():
         'Commodity Price', 'Commission Rate', 'Commission Total',
         'Transportation', 'Vessel Name', 'Ship Date Start', 'Ship Date End',
         'Co-Broker', 'Co-Brokerage Rate', 'Salesperson', 'Office',
-        'In Network', 'Packing', 'Notes', 'Terms', 'Declined',
+        'Packing', 'Notes', 'Terms', 'Declined',
     ]
+    col_widths = [
+        15, 12, 12, 28, 28, 18, 18, 25, 12, 12,
+        16, 16, 16, 16, 20, 14, 14,
+        20, 16, 20, 15,
+        12, 10, 40, 40, 10,
+    ]
+
+    # write_only mode streams rows to a temp file → bounded memory for large exports
+    wb = Workbook(write_only=True)
+    ws = wb.create_sheet('Contracts')
+
+    # Column widths must be set before any rows are appended in write-only mode
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = width
 
     header_font = Font(bold=True, color='FFFFFF')
     header_fill = PatternFill(start_color='1e1e1c', end_color='1e1e1c', fill_type='solid')
-
-    ws.append(headers)
-    for cell in ws[1]:
+    header_align = Alignment(horizontal='center')
+    header_cells = []
+    for h in headers:
+        cell = WriteOnlyCell(ws, value=h)
         cell.font = header_font
         cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center')
+        cell.alignment = header_align
+        header_cells.append(cell)
+    ws.append(header_cells)
 
-    for c in contracts_list:
+    # Stream contracts in batches so the full set is never materialized at once
+    for c in q.yield_per(500):
         ws.append([
             c.salesorder_number or '',
             c.date or '',
@@ -1224,21 +1286,11 @@ def _export_contracts_xlsx():
             c.cf_co_brokerage_rate,
             c.salesperson_name or '',
             c.location_name or '',
-            'Yes' if c.in_network is True else 'No' if c.in_network is False else '',
             c.packing or '',
             c.notes or '',
             c.terms or '',
             'Yes' if c.is_declined else 'No',
         ])
-
-    col_widths = [
-        15, 12, 12, 28, 28, 18, 18, 25, 12, 12,
-        16, 16, 16, 16, 20, 14, 14,
-        20, 16, 20, 15,
-        12, 10, 40, 40, 10,
-    ]
-    for i, width in enumerate(col_widths, 1):
-        ws.column_dimensions[ws.cell(1, i).column_letter].width = width
 
     buffer = io.BytesIO()
     wb.save(buffer)

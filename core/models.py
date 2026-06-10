@@ -142,10 +142,10 @@ class Contract(db.Model):
     terms                    = db.Column(db.Text)
 
     # Quern-local
-    in_network               = db.Column(db.Boolean)
     buyer_reference          = db.Column(db.String(200))
     is_declined              = db.Column(db.Boolean, default=False)
     packing                  = db.Column(db.String(20))
+    pic_employee_id          = db.Column(db.String(50))
 
     @property
     def total(self):
