@@ -1328,10 +1328,32 @@ def _build_contract_data(salesorder_id):
     }
 
 
+@app.route('/debug/contract_tags/<salesorder_id>')
+def debug_contract_tags(salesorder_id):
+    from core.zoho import get_access_token
+    import requests
+    import os
+
+    org_id = os.getenv('ZOHO_ORG_ID')
+    access_token = get_access_token()
+    api_response = requests.get(
+        f"https://www.zohoapis.com/books/v3/salesorders/{salesorder_id}",
+        headers={"Authorization": f"Zoho-oauthtoken {access_token}"},
+        params={"organization_id": org_id}
+    )
+    return api_response.json()
+
+
 # endregion
 
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+
+        from core.zoho import get_sales_order
+
+        contract = get_sales_order('4435369000023591001')  # Use any salesorder_id
+        print(contract.get('line_items', [{}])[0].get('tags', []))
+
     app.run(debug=True, host='0.0.0.0')

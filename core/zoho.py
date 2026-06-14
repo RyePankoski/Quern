@@ -170,6 +170,7 @@ def sync_items():
             db.session.add(new_item)
     db.session.commit()
 
+
 # Getters
 
 def get_items():
@@ -247,7 +248,7 @@ def get_access_token():
         raise RuntimeError(f"Failed to get access token: {data}")
 
     _token_cache["access_token"] = data["access_token"]
-    _token_cache["expires_at"] = time.time() + 3500 # noqa
+    _token_cache["expires_at"] = time.time() + 3500  # noqa
 
     return data["access_token"]
 
@@ -287,7 +288,7 @@ def get_next_test_number():
 
 
 def debug_reporting_tags():
-    token = get_access_token() # noqa
+    token = get_access_token()  # noqa
     orders = get_sales_orders(page=1)
     result = []
     for order in orders[:10]:
@@ -318,12 +319,24 @@ def get_locations():
     ]
 
 
+def get_office_tag_option_id(office_name):
+    """Map office name to reporting tag option ID."""
+    office_map = {
+        'Boulder': '4435369000000081153',
+        'Head Office': '4435369000000081153',
+        'Argentina': '4435369000000088065',
+        'Brazil': '4435369000000088067',
+        'Australia': '4435369000004707851',
+    }
+    return office_map.get(office_name)
+
+
 # Contract stuff
 
 def submit_contract(form_data):
     coin = get_access_token()
 
-    from core.models import Employee
+    from core.models import Employee, Item
     second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
     if second_broker_emp_id:
@@ -340,14 +353,14 @@ def submit_contract(form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
-            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
-            {"api_name": "cf_vessel_name",          "value": form_data.get('vessel_name')},
+            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
+            {"api_name": "cf_uom", "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -359,6 +372,46 @@ def submit_contract(form_data):
             except (ValueError, TypeError):
                 pct_decimal = second_broker_pct
             custom_fields.append({"api_name": "cf_split_percentage", "value": pct_decimal})
+
+    # Build line item with reporting tags
+    line_item = {
+        "item_id": form_data.get('commodity'),
+        "quantity": form_data.get('quantity', 1),
+        "rate": form_data.get('commission_rate'),
+    }
+
+    # Build tags array for Office and P&L Group
+    tags = []
+
+    # Add Office reporting tag from form location
+    office_name = form_data.get('location_name', '')
+    if office_name:
+        office_tag_option_id = get_office_tag_option_id(office_name)
+        if office_tag_option_id:
+            tags.append({
+                "tag_id": "4435369000000000333",
+                "tag_name": "Office",
+                "tag_option_id": office_tag_option_id,
+                "tag_option_name": office_name,
+            })
+            print(f"DEBUG: Added Office tag for '{office_name}' with ID {office_tag_option_id}")
+
+    # Add P&L Group reporting tag from item
+    commodity_id = form_data.get('commodity')
+    if commodity_id:
+        item = Item.query.get(commodity_id)
+        if item and item.pnl_group and item.pnl_group_tag_option_id:
+            tags.append({
+                "tag_id": "4435369000000000335",
+                "tag_name": "P&L Group",
+                "tag_option_id": item.pnl_group_tag_option_id,
+                "tag_option_name": item.pnl_group,
+            })
+
+    print(f"DEBUG: final tags = {tags}")
+    if tags:
+        line_item['tags'] = tags
+
     payload = {
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
@@ -368,16 +421,11 @@ def submit_contract(form_data):
         "notes": form_data.get('delivery_notes'),
         "terms": form_data.get('terms'),
         "location_id": form_data.get('location_id'),
-        "line_items": [
-            {
-                "item_id": form_data.get('commodity'),
-                "quantity": form_data.get('quantity', 1),
-                "rate": form_data.get('commission_rate'),
-            }
-        ],
+        "line_items": [line_item],
         "custom_fields": custom_fields,
     }
 
+    print(f"DEBUG submit_contract: payload line_items = {payload['line_items']}")
     api_response = requests.post(
         "https://www.zohoapis.com/books/v3/salesorders",
         headers={"Authorization": f"Zoho-oauthtoken {coin}"},
@@ -385,14 +433,14 @@ def submit_contract(form_data):
         json=payload
     )
 
-    print(api_response.json())
+    print(f"DEBUG submit_contract: response = {api_response.json()}")
     return api_response.json()
 
 
 def update_contract(salesorder_id, form_data):
     access_token = get_access_token()
 
-    from core.models import Employee
+    from core.models import Employee, Item
     second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
     if second_broker_emp_id:
@@ -409,14 +457,14 @@ def update_contract(salesorder_id, form_data):
 
     custom_fields = [
         cf for cf in [
-            {"api_name": "cf_buyer",               "value": form_data.get('buyer_name')},
+            {"api_name": "cf_buyer", "value": form_data.get('buyer_name')},
             {"api_name": "cf_item_contract_price", "value": form_data.get('commodity_rate')},
-            {"api_name": "cf_trnspname",           "value": form_data.get('transportation')},
-            {"api_name": "cf_uom",                 "value": form_data.get('uom')},
-            {"api_name": "cf_customer_ref",        "value": form_data.get('seller_reference')},
-            {"api_name": "cf_co_broker",           "value": form_data.get('co_broker_name')},
-            {"api_name": "cf_co_brokerage_rate",   "value": form_data.get('co_brokerage_rate')},
-            {"api_name": "cf_vessel_name",          "value": form_data.get('vessel_name')},
+            {"api_name": "cf_trnspname", "value": form_data.get('transportation')},
+            {"api_name": "cf_uom", "value": form_data.get('uom')},
+            {"api_name": "cf_customer_ref", "value": form_data.get('seller_reference')},
+            {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
+            {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
+            {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -429,6 +477,43 @@ def update_contract(salesorder_id, form_data):
                 pct_decimal = second_broker_pct
             custom_fields.append({"api_name": "cf_split_percentage", "value": pct_decimal})
 
+    # Build line item with reporting tags
+    line_item = {
+        "item_id": form_data.get('commodity'),
+        "quantity": form_data.get('quantity'),
+        "rate": form_data.get('commission_rate'),
+    }
+
+    # Build tags array for Office and P&L Group
+    tags = []
+
+    # Add Office reporting tag from form location
+    office_name = form_data.get('location_name', '')
+    if office_name:
+        office_tag_option_id = get_office_tag_option_id(office_name)
+        if office_tag_option_id:
+            tags.append({
+                "tag_id": "4435369000000000333",
+                "tag_name": "Office",
+                "tag_option_id": office_tag_option_id,
+                "tag_option_name": office_name,
+            })
+
+    # Add P&L Group reporting tag from item
+    commodity_id = form_data.get('commodity')
+    if commodity_id:
+        item = Item.query.get(commodity_id)
+        if item and item.pnl_group and item.pnl_group_tag_option_id:
+            tags.append({
+                "tag_id": "4435369000000000335",
+                "tag_name": "P&L Group",
+                "tag_option_id": item.pnl_group_tag_option_id,
+                "tag_option_name": item.pnl_group,
+            })
+
+    if tags:
+        line_item['tags'] = tags
+
     payload = {
         "customer_id": form_data.get('seller'),
         "date": form_data.get('contract_date'),
@@ -436,13 +521,7 @@ def update_contract(salesorder_id, form_data):
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
         "terms": form_data.get('terms'),
-        "line_items": [
-            {
-                "item_id": form_data.get('commodity'),
-                "quantity": form_data.get('quantity'),
-                "rate": form_data.get('commission_rate'),
-            }
-        ],
+        "line_items": [line_item],
         "custom_fields": custom_fields,
     }
 
@@ -485,39 +564,39 @@ def upsert_contract_from_zoho(detail):
         existing = Contract(salesorder_id=salesorder_id)
         db.session.add(existing)
 
-    existing.salesorder_number      = detail.get('salesorder_number', '')
-    existing.status                 = detail.get('status', '')
-    existing.last_modified_time     = detail.get('last_modified_time', '')
-    existing.date                   = detail.get('date', '')
-    existing.shipment_date          = detail.get('shipment_date', '')
-    existing.cf_shipment_end_date   = custom.get('cf_shipment_end_date', '')
-    existing.customer_id            = detail.get('customer_id', '')
-    existing.customer_name          = detail.get('customer_name', '')
-    existing.cf_buyer               = custom.get('cf_buyer', '')
-    buyer_name                      = custom.get('cf_buyer', '')
-    buyer_customer                  = Customer.query.filter_by(customer_name=buyer_name).first() if buyer_name else None
-    existing.cf_buyer_id            = buyer_customer.customer_id if buyer_customer else None
-    existing.item_id                = first_item.get('item_id', '')
-    existing.item_name              = first_item.get('name', '')
-    existing.quantity               = first_item.get('quantity')
-    existing.rate                   = first_item.get('rate')
+    existing.salesorder_number = detail.get('salesorder_number', '')
+    existing.status = detail.get('status', '')
+    existing.last_modified_time = detail.get('last_modified_time', '')
+    existing.date = detail.get('date', '')
+    existing.shipment_date = detail.get('shipment_date', '')
+    existing.cf_shipment_end_date = custom.get('cf_shipment_end_date', '')
+    existing.customer_id = detail.get('customer_id', '')
+    existing.customer_name = detail.get('customer_name', '')
+    existing.cf_buyer = custom.get('cf_buyer', '')
+    buyer_name = custom.get('cf_buyer', '')
+    buyer_customer = Customer.query.filter_by(customer_name=buyer_name).first() if buyer_name else None
+    existing.cf_buyer_id = buyer_customer.customer_id if buyer_customer else None
+    existing.item_id = first_item.get('item_id', '')
+    existing.item_name = first_item.get('name', '')
+    existing.quantity = first_item.get('quantity')
+    existing.rate = first_item.get('rate')
     existing.cf_item_contract_price = safe_float(custom.get('cf_item_contract_price'))
-    existing.cf_trnspname           = custom.get('cf_trnspname', '')
-    existing.cf_uom                 = custom.get('cf_uom', '')
-    existing.cf_customer_ref        = custom.get('cf_customer_ref', '')
-    existing.cf_co_broker           = custom.get('cf_co_broker', '')
-    existing.cf_co_brokerage_rate   = safe_float(custom.get('cf_co_brokerage_rate'))
-    existing.cf_split_broker        = custom.get('cf_split_broker', '')
-    existing.cf_split_percentage    = safe_float(custom.get('cf_split_percentage'))
-    existing.cf_vessel_name         = custom.get('cf_vessel_name', '')
-    existing.cf_origin_location     = custom.get('cf_origin_location', '')
-    existing.salesperson_name       = detail.get('salesperson_name', '')
-    existing.salesperson_id         = detail.get('salesperson_id', '')
-    existing.location_id            = detail.get('location_id', '')
-    existing.location_name          = detail.get('location_name', '')
-    existing.reference_number       = detail.get('reference_number', '')
-    existing.notes                  = detail.get('notes', '')
-    existing.terms                  = detail.get('terms', '')
+    existing.cf_trnspname = custom.get('cf_trnspname', '')
+    existing.cf_uom = custom.get('cf_uom', '')
+    existing.cf_customer_ref = custom.get('cf_customer_ref', '')
+    existing.cf_co_broker = custom.get('cf_co_broker', '')
+    existing.cf_co_brokerage_rate = safe_float(custom.get('cf_co_brokerage_rate'))
+    existing.cf_split_broker = custom.get('cf_split_broker', '')
+    existing.cf_split_percentage = safe_float(custom.get('cf_split_percentage'))
+    existing.cf_vessel_name = custom.get('cf_vessel_name', '')
+    existing.cf_origin_location = custom.get('cf_origin_location', '')
+    existing.salesperson_name = detail.get('salesperson_name', '')
+    existing.salesperson_id = detail.get('salesperson_id', '')
+    existing.location_id = detail.get('location_id', '')
+    existing.location_name = detail.get('location_name', '')
+    existing.reference_number = detail.get('reference_number', '')
+    existing.notes = detail.get('notes', '')
+    existing.terms = detail.get('terms', '')
 
     db.session.commit()
 
