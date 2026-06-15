@@ -441,6 +441,11 @@ def update_contract(salesorder_id, form_data):
     access_token = get_access_token()
 
     from core.models import Employee, Item
+
+    # Fetch existing contract to preserve existing tags
+    existing_contract = get_sales_order(salesorder_id)
+    existing_tags = existing_contract.get('line_items', [{}])[0].get('tags', []) if existing_contract else []
+
     second_broker_name = ''
     second_broker_emp_id = form_data.get('second_broker_employee_id', '')
     if second_broker_emp_id:
@@ -484,11 +489,12 @@ def update_contract(salesorder_id, form_data):
         "rate": form_data.get('commission_rate'),
     }
 
-    # Build tags array for Office and P&L Group
+    # Build tags array - merge existing tags with new ones from form
     tags = []
 
     # Add Office reporting tag from form location
     office_name = form_data.get('location_name', '')
+    office_tag_added = False
     if office_name:
         office_tag_option_id = get_office_tag_option_id(office_name)
         if office_tag_option_id:
@@ -498,8 +504,17 @@ def update_contract(salesorder_id, form_data):
                 "tag_option_id": office_tag_option_id,
                 "tag_option_name": office_name,
             })
+            office_tag_added = True
+
+    # If no Office tag from form, try to preserve existing Office tag
+    if not office_tag_added and existing_tags:
+        for tag in existing_tags:
+            if tag.get('tag_name') == 'Office':
+                tags.append(tag)
+                break
 
     # Add P&L Group reporting tag from item
+    pnl_tag_added = False
     commodity_id = form_data.get('commodity')
     if commodity_id:
         item = Item.query.get(commodity_id)
@@ -510,6 +525,14 @@ def update_contract(salesorder_id, form_data):
                 "tag_option_id": item.pnl_group_tag_option_id,
                 "tag_option_name": item.pnl_group,
             })
+            pnl_tag_added = True
+
+    # If no P&L Group tag from form, try to preserve existing P&L Group tag
+    if not pnl_tag_added and existing_tags:
+        for tag in existing_tags:
+            if tag.get('tag_name') == 'P&L Group':
+                tags.append(tag)
+                break
 
     if tags:
         line_item['tags'] = tags
