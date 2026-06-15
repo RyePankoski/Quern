@@ -322,11 +322,16 @@ def get_locations():
 def get_office_tag_option_id(office_name):
     """Map office name to reporting tag option ID."""
     office_map = {
-        'Boulder': '4435369000000081153',
-        'Head Office': '4435369000000081153',
         'Argentina': '4435369000000088065',
-        'Brazil': '4435369000000088067',
         'Australia': '4435369000004707851',
+        'Boulder': '4435369000000081153',
+        'Brazil': '4435369000000088067',
+        'Head Office': '4435369000000081153',
+        'India': '4435369000000081157',
+        'S': '4435369000000088075',
+        'SBC': '4435369000000088077',
+        'SC': '4435369000000088079',
+        'Singapore': '4435369000000088083',
     }
     return office_map.get(office_name)
 
