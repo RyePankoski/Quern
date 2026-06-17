@@ -132,7 +132,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity Price (USD)</label>
-                        <input type="number" step="0.01" class="form-control" name="commodity_rate"
+                        <input type="text" class="form-control" name="commodity_rate"
                                value="{{ contract['custom'].get('cf_item_contract_price', '') }}">
                     </div>
                 </div>
@@ -805,12 +805,23 @@
         const salesorderId = {{ contract['salesorder_id'] | tojson }};
 
         btn.addEventListener('click', () => {
-            const msg = isDeclined
-                ? 'Reactivate this contract?'
-                : 'Mark this contract as declined? This can be undone.';
-            if (!confirm(msg)) return;
+            let reason = null;
+            if (!isDeclined) {
+                reason = prompt('Please add a note as to why this deal is being declined:');
+                if (reason === null) return;  // user cancelled
+                if (!reason.trim()) {
+                    alert('A reason is required to decline this contract.');
+                    return;
+                }
+            } else {
+                if (!confirm('Reactivate this contract?')) return;
+            }
 
-            fetch(`/contracts/${salesorderId}/decline`, { method: 'POST' })
+            fetch(`/contracts/${salesorderId}/decline`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            })
                 .then(r => r.json())
                 .then(data => {
                     if (!data.ok) return;
@@ -826,6 +837,8 @@
                             banner.innerHTML = '<div id="declined-banner-inner">DECLINED</div>';
                             document.body.appendChild(banner);
                         }
+                        // Reload so the new note appears in the notes list
+                        window.location.reload();
                     } else {
                         btn.textContent = 'Mark as Declined';
                         btn.classList.remove('btn-outline-secondary');

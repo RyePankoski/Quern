@@ -608,7 +608,7 @@ def upsert_contract_from_zoho(detail):
     existing.item_name = first_item.get('name', '')
     existing.quantity = first_item.get('quantity')
     existing.rate = first_item.get('rate')
-    existing.cf_item_contract_price = safe_float(custom.get('cf_item_contract_price'))
+    existing.cf_item_contract_price = custom.get('cf_item_contract_price', '')
     existing.cf_trnspname = custom.get('cf_trnspname', '')
     existing.cf_uom = custom.get('cf_uom', '')
     existing.cf_customer_ref = custom.get('cf_customer_ref', '')
@@ -733,6 +733,7 @@ def contract_to_form_data_local(contract):
         'seller_reference': contract.cf_customer_ref or '',
         'co_broker_name': contract.cf_co_broker or '',
         'co_brokerage_rate': contract.cf_co_brokerage_rate or '',
+        'vessel_name': contract.cf_vessel_name or '',
         'location_id': contract.location_id or '',
         'location_name': contract.location_name or '',
     }

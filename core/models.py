@@ -121,7 +121,7 @@ class Contract(db.Model):
     rate                     = db.Column(db.Float)
 
     # Custom fields
-    cf_item_contract_price   = db.Column(db.Float)
+    cf_item_contract_price   = db.Column(db.String(100))
     cf_trnspname             = db.Column(db.String(100))
     cf_uom                   = db.Column(db.String(100))
     cf_customer_ref          = db.Column(db.String(200))
