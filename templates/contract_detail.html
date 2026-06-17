@@ -109,14 +109,14 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Seller Reference Number</label>
-                        <input type="text" class="form-control" name="seller_reference"
-                               value="{{ contract['custom'].get('cf_customer_ref', '') }}">
-                    </div>
-                    <div class="col-md-6">
                         <label class="form-label">Buyer Reference Number</label>
                         <input type="text" class="form-control" name="buyer_reference"
                                value="{{ meta.buyer_reference or '' if meta else '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Seller Reference Number</label>
+                        <input type="text" class="form-control" name="seller_reference"
+                               value="{{ contract['custom'].get('cf_customer_ref', '') }}">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Commodity</label>

@@ -1351,9 +1351,4 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
 
-        from core.zoho import get_sales_order
-
-        contract = get_sales_order('4435369000023591001')  # Use any salesorder_id
-        print(contract.get('line_items', [{}])[0].get('tags', []))
-
     app.run(debug=True, host='0.0.0.0')

@@ -68,10 +68,11 @@
             <div class="col-6 col-md-2">
                 <select name="status" class="form-select form-select-sm">
                     <option value="">All Statuses</option>
-                    <option value="draft"      {% if filters.status == 'draft' %}selected{% endif %}>draft</option>
-                    <option value="confirmed"  {% if filters.status == 'confirmed' %}selected{% endif %}>confirmed</option>
-                    <option value="void"       {% if filters.status == 'void' %}selected{% endif %}>void</option>
-                    <option value="declined"   {% if filters.status == 'declined' %}selected{% endif %}>declined</option>
+                    <option value="draft"      {% if filters.status == 'draft' %}selected{% endif %}>Draft</option>
+                    <option value="open"       {% if filters.status == 'open' %}selected{% endif %}>Open</option>
+                    <option value="invoiced"   {% if filters.status == 'invoiced' %}selected{% endif %}>Invoiced</option>
+                    <option value="overdue"    {% if filters.status == 'overdue' %}selected{% endif %}>Overdue</option>
+                    <option value="declined"   {% if filters.status == 'declined' %}selected{% endif %}>Declined</option>
                 </select>
             </div>
             <div class="col-6 col-md-2">
@@ -135,7 +136,21 @@
                 <td>{{ contract.customer_name }}</td>
                 <td>{{ contract.cf_customer_ref or '' }}</td>
                 <td>{{ contract.item_name or '' }}</td>
-                <td>{{ contract.status }}</td>
+                <td>
+                    {% if contract.is_declined %}
+                        <span class="badge bg-danger">Declined</span>
+                    {% elif contract.status == 'draft' %}
+                        <span class="badge bg-secondary">Draft</span>
+                    {% elif contract.status == 'open' %}
+                        <span class="badge bg-primary">Open</span>
+                    {% elif contract.status == 'invoiced' %}
+                        <span class="badge bg-success">Invoiced</span>
+                    {% elif contract.status == 'overdue' %}
+                        <span class="badge bg-warning text-dark">Overdue</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ contract.status or '—' }}</span>
+                    {% endif %}
+                </td>
                 <td>{{ contract.date }}</td>
             </tr>
             {% endfor %}
