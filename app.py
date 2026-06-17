@@ -59,6 +59,23 @@ def _contracts_user_is_on():
     return ids
 
 
+def _apply_contract_access(q):
+    """Apply nationality-based access control to a Contract query.
+    Non-admin users with a nationality see only contracts at their office,
+    plus any contracts they're personally on the broker team for."""
+    if not current_user.is_admin and current_user.nationality:
+        own_ids = _contracts_user_is_on()
+        if own_ids:
+            from sqlalchemy import or_
+            q = q.filter(or_(
+                Contract.location_name == current_user.nationality,
+                Contract.salesorder_id.in_(own_ids)
+            ))
+        else:
+            q = q.filter(Contract.location_name == current_user.nationality)
+    return q
+
+
 # region Tabs/Pages
 @app.route('/')
 @login_required
@@ -81,7 +98,9 @@ def item_detail(item_id):
         flash('Item not found.', 'danger')
         return redirect('/items')
 
-    contracts_list = Contract.query.filter_by(item_id=item_id).order_by(Contract.date.desc()).all()
+    contracts_q = Contract.query.filter_by(item_id=item_id)
+    contracts_q = _apply_contract_access(contracts_q)
+    contracts_list = contracts_q.order_by(Contract.date.desc()).all()
     return render_template('item_detail.html', item=item, contracts=contracts_list)
 
 
@@ -100,9 +119,11 @@ def counterparty_detail(customer_id):
         flash('Counterparty not found.', 'danger')
         return redirect('/counterparties')
 
-    contracts_list = Contract.query.filter(
+    contracts_q = Contract.query.filter(
         db.or_(Contract.customer_id == customer_id, Contract.cf_buyer_id == customer_id)
-    ).order_by(Contract.date.desc()).all()
+    )
+    contracts_q = _apply_contract_access(contracts_q)
+    contracts_list = contracts_q.order_by(Contract.date.desc()).all()
 
     return render_template('counterparty_detail.html', customer=customer, contracts=contracts_list)
 
@@ -156,17 +177,8 @@ def bulk_edit():
 def contracts():
     q = Contract.query
 
-    # Nationality filter — brokers also see contracts they're on, regardless of nationality
-    if not current_user.is_admin and current_user.nationality:
-        own_ids = _contracts_user_is_on()
-        if own_ids:
-            from sqlalchemy import or_
-            q = q.filter(or_(
-                Contract.location_name == current_user.nationality,
-                Contract.salesorder_id.in_(own_ids)
-            ))
-        else:
-            q = q.filter(Contract.location_name == current_user.nationality)
+    # Nationality-based access control (brokers also see contracts they're on)
+    q = _apply_contract_access(q)
 
     # Text filters
     number    = request.args.get('number', '').strip()
@@ -206,7 +218,9 @@ def contracts():
         from sqlalchemy import or_
         _ucols = [Contract.salesorder_number, Contract.cf_buyer, Contract.customer_name,
                   Contract.item_name, Contract.salesperson_name, Contract.location_name,
-                  Contract.cf_vessel_name, Contract.cf_customer_ref, Contract.buyer_reference]
+                  Contract.cf_vessel_name, Contract.cf_customer_ref, Contract.buyer_reference,
+                  Contract.reference_number, Contract.cf_co_broker, Contract.cf_split_broker,
+                  Contract.cf_origin_location, Contract.cf_trnspname, Contract.cf_uom]
         if exact:
             q = q.filter(or_(*[c == universal for c in _ucols]))
         else:
@@ -661,7 +675,7 @@ def submit_contract_route():
         return redirect(f'/submit_success/{salesorder_id}?number={salesorder_number}')
     else:
         flash(f"Submission failed: {result.get('message', 'Unknown error')}", 'danger')
-        return redirect('/new_contract')
+        return redirect('/new_contract?restore=1')
 
 
 @app.route('/bulk_edit/<salesorder_id>', methods=['POST'])
@@ -1108,7 +1122,21 @@ def toggle_decline(salesorder_id):
     c = Contract.query.get(salesorder_id)
     if not c:
         return {'ok': False, 'error': 'Contract not found'}, 404
-    c.is_declined = not bool(c.is_declined)
+
+    was_declined = bool(c.is_declined)
+    c.is_declined = not was_declined
+
+    # When newly declining, record the reason as a contract note
+    if not was_declined:
+        data = request.get_json(silent=True) or {}
+        reason = (data.get('reason') or '').strip()
+        if reason:
+            db.session.add(ContractNote(
+                books_sales_order_id=salesorder_id,
+                author=current_user.display_name or current_user.email,
+                body=f'[DECLINED] {reason}'
+            ))
+
     db.session.commit()
     return {'ok': True, 'is_declined': c.is_declined}
 
@@ -1223,8 +1251,7 @@ def _export_contracts_xlsx():
     from openpyxl.utils import get_column_letter
 
     q = Contract.query
-    if not (current_user.is_admin or not current_user.nationality):
-        q = q.filter(Contract.location_name == current_user.nationality)
+    q = _apply_contract_access(q)
     q = q.order_by(Contract.date.desc())
 
     headers = [
@@ -1350,5 +1377,6 @@ def debug_contract_tags(salesorder_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+
 
     app.run(debug=True, host='0.0.0.0')

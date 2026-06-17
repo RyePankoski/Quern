@@ -168,6 +168,12 @@
                         </select>
                     </div>
                     <div class="col-md-6">
+                        <label class="form-label">Vessel Name</label>
+                        <input type="text" class="form-control" name="vessel_name"
+                               placeholder="Enter vessel name"
+                               value="{{ prefill.vessel_name if prefill else '' }}">
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label">Packing in Bulk</label>
                         <select class="form-select" name="packing">
                             <option value="">-- Select --</option>
@@ -287,7 +293,7 @@
 
         <!-- Submit -->
         <div class="d-flex gap-2 justify-content-end mb-5">
-            <button type="reset" class="btn btn-outline-secondary">Reset</button>
+            <button type="button" id="reset-form-btn" class="btn btn-outline-secondary">Reset</button>
             <button type="submit" class="btn btn-success">Submit Contract</button>
         </div>
 
@@ -479,7 +485,44 @@
         sessionStorage.removeItem(CACHE_KEY);
     }
 
-    restoreForm();
+    // Only restore cached values when returning from a failed submit (?restore=1).
+    // On a fresh new-contract visit, clear any stale cache so it can't bleed in.
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('restore') === '1') {
+        restoreForm();
+    } else {
+        sessionStorage.removeItem(CACHE_KEY);
+    }
+
+    // ── Reset: clear everything (fields, Select2, subforms, cache) ────────────
+    const resetBtn = document.getElementById('reset-form-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            const form = document.querySelector('form');
+
+            // Clear text/number/date inputs and textareas
+            form.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], textarea').forEach(el => {
+                el.value = '';
+            });
+
+            // Reset selects to first option, syncing Select2 if present
+            form.querySelectorAll('select').forEach(el => {
+                el.selectedIndex = 0;
+                if (window.$ && $(el).data('select2')) $(el).trigger('change');
+            });
+
+            // Clear dynamic subforms
+            const brokerBody = document.getElementById('broker-commission-body');
+            if (brokerBody) brokerBody.innerHTML = '';
+            const shipmentsBody = document.getElementById('shipments-body');
+            if (shipmentsBody) shipmentsBody.innerHTML = '';
+
+            // Recompute totals and clear cache
+            updateTotalCommission();
+            updateShipmentTotal();
+            sessionStorage.removeItem(CACHE_KEY);
+        });
+    }
 
     // ── Submit: validate then cache ──────────────────────────────────────────
     document.querySelector('form').addEventListener('submit', function (e) {

@@ -134,7 +134,7 @@ class Contract(db.Model):
     item_name = db.Column(db.String(200))
     quantity = db.Column(db.Float)
     rate = db.Column(db.Float)
-    cf_item_contract_price = db.Column(db.Float)
+    cf_item_contract_price = db.Column(db.String(100))
     cf_trnspname = db.Column(db.String(100))
     cf_uom = db.Column(db.String(100))
     cf_customer_ref = db.Column(db.String(200))
@@ -248,7 +248,7 @@ def upsert_contract_from_zoho(detail):
     existing.item_name = first_item.get("name", "")
     existing.quantity = first_item.get("quantity")
     existing.rate = first_item.get("rate")
-    existing.cf_item_contract_price = _safe_float(custom.get("cf_item_contract_price"))
+    existing.cf_item_contract_price = custom.get("cf_item_contract_price", "")
     existing.cf_trnspname = custom.get("cf_trnspname", "")
     existing.cf_uom = custom.get("cf_uom", "")
     existing.cf_customer_ref = custom.get("cf_customer_ref", "")
@@ -638,7 +638,7 @@ class TestUpsertContractFromZoho:
         upsert_contract_from_zoho(detail)
         c = Contract.query.get("SO-CF")
         assert c.cf_buyer == "BuyerCo"
-        assert c.cf_item_contract_price == pytest.approx(250.0)
+        assert c.cf_item_contract_price == "250.00"
         assert c.cf_uom == "MT"
         assert c.cf_split_percentage == pytest.approx(0.25)
 
@@ -670,13 +670,13 @@ class TestUpsertContractFromZoho:
         upsert_contract_from_zoho({"salesorder_number": "ghost"})
         assert Contract.query.count() == 0
 
-    def test_safe_float_applied_to_price(self, app):
+    def test_empty_price_stored_as_blank(self, app):
         detail = _minimal_detail("SO-SF", custom_fields=[
             {"api_name": "cf_item_contract_price", "value": ""},
         ])
         upsert_contract_from_zoho(detail)
         c = Contract.query.get("SO-SF")
-        assert c.cf_item_contract_price is None
+        assert c.cf_item_contract_price == ""
 
     def test_local_fields_preserved_on_update(self, app):
         """in_network and buyer_reference must not be overwritten by upsert."""
@@ -709,7 +709,7 @@ class TestContractToFormDataLocal:
             item_id="ITEM-1",
             rate=0.05,
             quantity=500.0,
-            cf_item_contract_price=250.0,
+            cf_item_contract_price="250.00",
             cf_trnspname="Truck",
             cf_uom="MT",
             cf_customer_ref="REF-1",
