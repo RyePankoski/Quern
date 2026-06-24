@@ -424,7 +424,6 @@ def submit_contract(form_data):
         "shipment_date": form_data.get('shipping_date_end'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
-        "terms": form_data.get('terms'),
         "location_id": form_data.get('location_id'),
         "line_items": [line_item],
         "custom_fields": custom_fields,
@@ -548,7 +547,6 @@ def update_contract(salesorder_id, form_data):
         "shipment_date": form_data.get('shipping_date_end'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
-        "terms": form_data.get('terms'),
         "line_items": [line_item],
         "custom_fields": custom_fields,
     }

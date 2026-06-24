@@ -319,6 +319,32 @@
         const shipFrom  = document.getElementById('filter-ship-from').value;
         const shipTo    = document.getElementById('filter-ship-to').value;
 
+        // Build URL params for backend filtering
+        const params = new URLSearchParams();
+        if (universalRaw) params.append('q', universalRaw);
+        if (exact) params.append('exact', '1');
+        if (number) params.append('number', number);
+        if (buyer) params.append('buyer', buyer);
+        if (seller) params.append('seller', seller);
+        if (commodity) params.append('commodity', commodity);
+        if (broker) params.append('broker', broker);
+        if (office) params.append('office', office);
+        if (status) params.append('status', status);
+        if (uom) params.append('uom', uom);
+        if (transport) params.append('transport', transport);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        if (shipFrom) params.append('ship_from', shipFrom);
+        if (shipTo) params.append('ship_to', shipTo);
+
+        // Reload page with filter params if any are set
+        const queryString = params.toString();
+        if (queryString) {
+            window.location.href = `/bulk_edit?${queryString}`;
+            return;
+        }
+
+        // Client-side filtering (for when URL params are not used)
         allRows().forEach(row => {
             const d = row.dataset;
             const allText = Object.values(d).join(' ').toLowerCase();

@@ -181,21 +181,21 @@ def contracts():
     q = _apply_contract_access(q)
 
     # Text filters
-    number    = request.args.get('number', '').strip()
-    buyer     = request.args.get('buyer', '').strip()
-    seller    = request.args.get('seller', '').strip()
+    number = request.args.get('number', '').strip()
+    buyer = request.args.get('buyer', '').strip()
+    seller = request.args.get('seller', '').strip()
     commodity = request.args.get('commodity', '').strip()
-    broker    = request.args.get('broker', '').strip()
-    office    = request.args.get('office', '').strip()
-    status    = request.args.get('status', '').strip()
-    uom       = request.args.get('uom', '').strip()
+    broker = request.args.get('broker', '').strip()
+    office = request.args.get('office', '').strip()
+    status = request.args.get('status', '').strip()
+    uom = request.args.get('uom', '').strip()
     transport = request.args.get('transport', '').strip()
     date_from = request.args.get('date_from', '').strip()
-    date_to   = request.args.get('date_to', '').strip()
+    date_to = request.args.get('date_to', '').strip()
     ship_from = request.args.get('ship_from', '').strip()
-    ship_to   = request.args.get('ship_to', '').strip()
+    ship_to = request.args.get('ship_to', '').strip()
     universal = request.args.get('q', '').strip()
-    exact     = request.args.get('exact', '').strip()
+    exact = request.args.get('exact', '').strip()
 
     if number:    q = q.filter(Contract.salesorder_number.ilike(f'%{number}%'))
     if buyer:     q = q.filter(Contract.cf_buyer.ilike(f'%{buyer}%'))
@@ -238,7 +238,8 @@ def contracts():
     else:
         contracts_list = q.order_by(Contract.date.desc()).limit(500).all()
 
-    return render_template('contracts.html', contracts=contracts_list, filters=filters, exact=exact, limited=not any_filter)
+    return render_template('contracts.html', contracts=contracts_list, filters=filters, exact=exact,
+                           limited=not any_filter)
 
 
 @app.route('/tasks')
@@ -622,9 +623,12 @@ def submit_contract_route():
         request_notes.append('[REQUEST NEW BUYER: ' + form_data['requested_buyer_name'].strip() + ']')
     if form_data.get('requested_seller_name', '').strip():
         request_notes.append('[REQUEST NEW SELLER: ' + form_data['requested_seller_name'].strip() + ']')
-    if request_notes:
-        existing_notes = form_data.get('delivery_notes', '').strip()
-        form_data['delivery_notes'] = chr(10).join(request_notes + ([existing_notes] if existing_notes else []))
+
+    # Collect all delivery notes boxes
+    delivery_notes_list = request.form.getlist('delivery_notes[]')
+    delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
+    all_notes = request_notes + delivery_notes_list
+    form_data['delivery_notes'] = chr(10).join(all_notes) if all_notes else ''
 
     result = zoho.submit_contract(form_data)
     if result.get('code', 0) == 0:
@@ -738,7 +742,8 @@ def bulk_edit_save(salesorder_id):
     booking_parts_bulk = []
     for s in local_shipments:
         if s.booking_number:
-            qty_str = str(int(s.quantity)) if s.quantity and s.quantity == int(s.quantity) else str(s.quantity) if s.quantity else ''
+            qty_str = str(int(s.quantity)) if s.quantity and s.quantity == int(s.quantity) else str(
+                s.quantity) if s.quantity else ''
             booking_parts_bulk.append(f'{s.booking_number}: {qty_str}' if qty_str else s.booking_number)
     form_data['booking_numbers_concat'] = ', '.join(booking_parts_bulk)
 
@@ -773,6 +778,11 @@ def update_contract(salesorder_id):
         if b.strip():
             booking_parts_update.append(f'{b}: {q}' if q.strip() else b)
     form_data['booking_numbers_concat'] = ', '.join(booking_parts_update)
+
+    # Collect all delivery notes boxes
+    delivery_notes_list = request.form.getlist('delivery_notes[]')
+    delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
+    form_data['delivery_notes'] = chr(10).join(delivery_notes_list) if delivery_notes_list else ''
 
     result = zoho.update_contract(salesorder_id, form_data)
     if result.get('code', 0) == 0:
@@ -1377,6 +1387,5 @@ def debug_contract_tags(salesorder_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-
 
     app.run(debug=True, host='0.0.0.0')
