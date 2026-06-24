@@ -226,8 +226,11 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label">Delivery Notes</label>
-                        <textarea class="form-control" rows="4"
-                                  name="delivery_notes">{{ contract.get('notes', '') }}</textarea>
+                        <div id="delivery-notes-container-detail">
+                            <textarea class="form-control delivery-notes-box" rows="4"
+                                      name="delivery_notes[]">{{ contract.get('notes', '') }}</textarea>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addDeliveryNotesBoxDetail()">+ Add Notes</button>
                     </div>
                 </div>
             </div>
@@ -775,6 +778,21 @@
         `;
         tbody.appendChild(tr);
         tr.querySelector('[name="shipment_quantity[]"]').addEventListener('input', updateShipmentTotal);
+    }
+
+    function addDeliveryNotesBoxDetail() {
+        const container = document.getElementById('delivery-notes-container-detail');
+        const newBox = document.createElement('div');
+        newBox.className = 'delivery-notes-item mt-2 position-relative';
+        newBox.innerHTML = `
+            <div class="d-flex gap-2">
+                <textarea class="form-control delivery-notes-box flex-grow-1" name="delivery_notes[]" rows="4"
+                          placeholder="Enter delivery notes..."></textarea>
+                <button type="button" class="btn btn-sm btn-outline-danger align-self-start mt-1"
+                        onclick="this.parentElement.parentElement.remove()">Remove</button>
+            </div>
+        `;
+        container.appendChild(newBox);
     }
 
     updateShipmentTotal();
