@@ -86,7 +86,12 @@ class Task(db.Model):
     status = db.Column(db.String(20), default='pending')
     completed_value = db.Column(db.String(500))
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # noqa
+
+    # Scheduling: task only appears after scheduled_date or after creation + delay_minutes
+    scheduled_date = db.Column(db.DateTime)  # Specific date when task should appear
+    delay_minutes = db.Column(db.Integer)  # Minutes after creation when task should appear (or None)
+    is_visible = db.Column(db.Boolean, default=True)  # Whether task should be shown to user
 
     template = db.relationship('TaskTemplate', backref='tasks')
     employee = db.relationship('Employee', backref='tasks')
@@ -96,56 +101,56 @@ class Contract(db.Model):
     __tablename__ = 'contracts'
 
     # Zoho identifiers
-    salesorder_id            = db.Column(db.String(100), primary_key=True)
-    salesorder_number        = db.Column(db.String(100))
-    status                   = db.Column(db.String(50))
-    last_modified_time       = db.Column(db.String(50))
+    salesorder_id = db.Column(db.String(100), primary_key=True)
+    salesorder_number = db.Column(db.String(100))
+    status = db.Column(db.String(50))
+    last_modified_time = db.Column(db.String(50))
 
     # Dates
-    date                     = db.Column(db.String(20))
-    shipment_date            = db.Column(db.String(20))
-    cf_shipment_end_date     = db.Column(db.String(20))
+    date = db.Column(db.String(20))
+    shipment_date = db.Column(db.String(20))
+    cf_shipment_end_date = db.Column(db.String(20))
 
     # Seller
-    customer_id              = db.Column(db.String(100))
-    customer_name            = db.Column(db.String(200))
+    customer_id = db.Column(db.String(100))
+    customer_name = db.Column(db.String(200))
 
     # Buyer
-    cf_buyer                 = db.Column(db.String(200))
-    cf_buyer_id              = db.Column(db.String(100))
+    cf_buyer = db.Column(db.String(200))
+    cf_buyer_id = db.Column(db.String(100))
 
     # Line item
-    item_id                  = db.Column(db.String(100))
-    item_name                = db.Column(db.String(200))
-    quantity                 = db.Column(db.Float)
-    rate                     = db.Column(db.Float)
+    item_id = db.Column(db.String(100))
+    item_name = db.Column(db.String(200))
+    quantity = db.Column(db.Float)
+    rate = db.Column(db.Float)
 
     # Custom fields
-    cf_item_contract_price   = db.Column(db.String(100))
-    cf_trnspname             = db.Column(db.String(100))
-    cf_uom                   = db.Column(db.String(100))
-    cf_customer_ref          = db.Column(db.String(200))
-    cf_co_broker             = db.Column(db.String(200))
-    cf_co_brokerage_rate     = db.Column(db.Float)
-    cf_split_broker          = db.Column(db.String(200))
-    cf_split_percentage      = db.Column(db.Float)
-    cf_vessel_name           = db.Column(db.String(200))
-    cf_origin_location       = db.Column(db.String(200))
+    cf_item_contract_price = db.Column(db.String(100))
+    cf_trnspname = db.Column(db.String(100))
+    cf_uom = db.Column(db.String(100))
+    cf_customer_ref = db.Column(db.String(200))
+    cf_co_broker = db.Column(db.String(200))
+    cf_co_brokerage_rate = db.Column(db.Float)
+    cf_split_broker = db.Column(db.String(200))
+    cf_split_percentage = db.Column(db.Float)
+    cf_vessel_name = db.Column(db.String(200))
+    cf_origin_location = db.Column(db.String(200))
 
     # Zoho top-level
-    salesperson_name         = db.Column(db.String(200))
-    salesperson_id           = db.Column(db.String(100))
-    location_id              = db.Column(db.String(100))
-    location_name            = db.Column(db.String(200))
-    reference_number         = db.Column(db.String(500))
-    notes                    = db.Column(db.Text)
-    terms                    = db.Column(db.Text)
+    salesperson_name = db.Column(db.String(200))
+    salesperson_id = db.Column(db.String(100))
+    location_id = db.Column(db.String(100))
+    location_name = db.Column(db.String(200))
+    reference_number = db.Column(db.String(500))
+    notes = db.Column(db.Text)
+    terms = db.Column(db.Text)
 
     # Quern-local
-    buyer_reference          = db.Column(db.String(200))
-    is_declined              = db.Column(db.Boolean, default=False)
-    packing                  = db.Column(db.String(20))
-    pic_employee_id          = db.Column(db.String(50))
+    buyer_reference = db.Column(db.String(200))
+    is_declined = db.Column(db.Boolean, default=False)
+    packing = db.Column(db.String(20))
+    pic_employee_id = db.Column(db.String(50))
 
     @property
     def total(self):
@@ -160,7 +165,7 @@ class Shipment(db.Model):
     vessel_name = db.Column(db.String(200), nullable=True)
     booking_number = db.Column(db.String(200), nullable=True)
     quantity = db.Column(db.Float, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # noqa
 
 
 class ContractNote(db.Model):
@@ -169,7 +174,7 @@ class ContractNote(db.Model):
     books_sales_order_id = db.Column(db.String(100), nullable=False)
     author = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # noqa
 
 
 class BrokerCommission(db.Model):
@@ -179,11 +184,11 @@ class BrokerCommission(db.Model):
     employee_id = db.Column(db.String(100), nullable=False)
     percentage = db.Column(db.Float, nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # noqa
 
 
 class SyncState(db.Model):
     __tablename__ = 'sync_state'
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.String(200), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow) # noqa
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)  # noqa
