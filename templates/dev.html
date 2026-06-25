@@ -63,6 +63,40 @@
         </div>
     </div>
 
+    <!-- Scheduler -->
+    <div class="card mb-4">
+        <div class="card-header">Scheduler</div>
+        <div class="card-body">
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-success" onclick="schedulerStart()">Start</button>
+                <button class="btn btn-outline-warning" onclick="schedulerStop()">Pause</button>
+                <button class="btn btn-outline-danger" onclick="schedulerClearLog()">Clear Log</button>
+                <button class="btn btn-outline-secondary" onclick="refreshSchedulerLog()" style="margin-left:auto;">Refresh</button>
+                <span id="scheduler-status" class="text-muted align-self-center"></span>
+            </div>
+            <textarea id="scheduler-log"
+                      class="form-control"
+                      rows="10"
+                      readonly
+                      placeholder="Scheduler log will appear here..."
+                      style="font-family: monospace; font-size: 0.75rem; background-color:#1a1a18; color:#d3d1c7; border-color:#3a3a38;"></textarea>
+            <small class="d-block text-muted mt-2">Daily syncs at midnight UTC (items 12:00, counterparties 12:05, contracts 12:10)</small>
+        </div>
+    </div>
+
+    <!-- Manual Syncs -->
+    <div class="card mb-4">
+        <div class="card-header">Manual Syncs</div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-outline-primary" onclick="runSync('items')">Sync Items</button>
+                <button class="btn btn-outline-primary" onclick="runSync('counterparties')">Sync Counterparties</button>
+                <button class="btn btn-outline-primary" onclick="runSync('contracts')">Sync Contracts</button>
+            </div>
+            <div id="sync-status" class="text-muted mt-2" style="font-size:0.85rem;"></div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -130,6 +164,87 @@
             .then(data => setOutput(JSON.stringify(data, null, 2)))
             .catch(err => setOutput('Error: ' + err));
     }
+
+    // ── Scheduler Controls ─────────────────────────────────────────────────────
+
+    function refreshSchedulerLog() {
+        fetch('/dev/scheduler/log')
+            .then(res => res.json())
+            .then(data => {
+                const logEl = document.getElementById('scheduler-log');
+                logEl.value = (data.log || []).join('\n');
+                logEl.scrollTop = logEl.scrollHeight;
+                const statusEl = document.getElementById('scheduler-status');
+                statusEl.textContent = data.running ? '● Running' : '● Paused';
+                statusEl.style.color = data.running ? '#4f7a1a' : '#cc9900';
+            })
+            .catch(err => console.error('Error fetching log:', err));
+    }
+
+    function schedulerStart() {
+        fetch('/dev/scheduler/start', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) refreshSchedulerLog();
+            })
+            .catch(err => console.error('Error:', err));
+    }
+
+    function schedulerStop() {
+        fetch('/dev/scheduler/stop', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) refreshSchedulerLog();
+            })
+            .catch(err => console.error('Error:', err));
+    }
+
+    function schedulerClearLog() {
+        fetch('/dev/scheduler/clear-log', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) refreshSchedulerLog();
+            })
+            .catch(err => console.error('Error:', err));
+    }
+
+    // ── Manual Syncs ───────────────────────────────────────────────────────────
+
+    function runSync(type) {
+        const statusEl = document.getElementById('sync-status');
+        const btn = event.target;
+        const originalText = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = 'Syncing...';
+        statusEl.textContent = `Syncing ${type}...`;
+
+        fetch(`/dev/sync/${type}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                if (data.ok) {
+                    statusEl.textContent = `✓ ${data.message}`;
+                    statusEl.style.color = '#4f7a1a';
+                    refreshSchedulerLog();
+                    setTimeout(() => statusEl.textContent = '', 3000);
+                } else {
+                    statusEl.textContent = `✗ Error: ${data.error}`;
+                    statusEl.style.color = '#cc0000';
+                }
+            })
+            .catch(err => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                statusEl.textContent = `✗ Error: ${err}`;
+                statusEl.style.color = '#cc0000';
+            });
+    }
+
+    // Auto-refresh scheduler log every 2 seconds
+    setInterval(refreshSchedulerLog, 2000);
+    refreshSchedulerLog(); // Initial load
 </script>
 
 {% endblock %}

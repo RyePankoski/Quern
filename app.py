@@ -4,6 +4,11 @@ from datetime import timezone
 from flask import Flask, render_template, request, redirect, flash, send_file, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
+import atexit
+from datetime import datetime
 
 from core import zoho
 
@@ -26,6 +31,139 @@ migrate = Migrate(app, db, render_as_batch=True)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# ── Scheduler Setup ────────────────────────────────────────────────────────────
+scheduler = BackgroundScheduler()
+scheduler_log = []
+
+
+def log_scheduler_message(msg):
+    """Log a message with timestamp to the scheduler log."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_entry = f'[{timestamp}] {msg}'
+    scheduler_log.append(log_entry)
+    # Keep last 100 messages
+    if len(scheduler_log) > 100:
+        scheduler_log.pop(0)
+    print(log_entry)
+
+
+def scheduler_activate_tasks():
+    """Check and activate tasks whose scheduling time has arrived."""
+    try:
+        with app.app_context():
+            from core.models import Task
+            from datetime import datetime, timedelta
+
+            now = datetime.utcnow()
+            activated = 0
+
+            # Find tasks that should be visible but aren't yet
+            hidden_tasks = Task.query.filter_by(is_visible=False).all()
+
+            for task in hidden_tasks:
+                should_show = False
+                reason = ''
+
+                # Check if scheduled_date has passed
+                if task.scheduled_date and task.scheduled_date <= now:
+                    should_show = True
+                    reason = f'scheduled date {task.scheduled_date.strftime("%Y-%m-%d %H:%M:%S")} reached'
+
+                # Check if delay_minutes has elapsed
+                if not should_show and task.delay_minutes and task.created_at:
+                    show_time = task.created_at + timedelta(minutes=task.delay_minutes)
+                    if show_time <= now:
+                        should_show = True
+                        reason = f'delay of {task.delay_minutes} minutes elapsed'
+
+                if should_show:
+                    task.is_visible = True
+                    activated += 1
+                    log_scheduler_message(f'Task {task.id} activated ({reason})')
+
+            if activated > 0:
+                db.session.commit()
+    except Exception as e:
+        log_scheduler_message(f'Error in activate_tasks: {str(e)}')
+
+
+def scheduler_sync_items():
+    """Daily sync of items from Zoho."""
+    try:
+        with app.app_context():
+            log_scheduler_message('Starting daily items sync...')
+            sync_items()
+            log_scheduler_message('Daily items sync completed')
+    except Exception as e:
+        log_scheduler_message(f'Error in sync_items: {str(e)}')
+
+
+def scheduler_sync_counterparties():
+    """Daily sync of counterparties (customers) from Zoho."""
+    try:
+        with app.app_context():
+            log_scheduler_message('Starting daily counterparties sync...')
+            sync_customers()
+            log_scheduler_message('Daily counterparties sync completed')
+    except Exception as e:
+        log_scheduler_message(f'Error in sync_counterparties: {str(e)}')
+
+
+def scheduler_sync_contracts():
+    """Daily sync of contracts from Zoho."""
+    try:
+        with app.app_context():
+            log_scheduler_message('Starting daily contracts sync...')
+            page = 1
+            total = 0
+            while True:
+                result = sync_contracts_page(page)
+                total += result['count']
+                log_scheduler_message(f'  Synced page {page}: {result["count"]} contracts')
+                if not result['has_more']:
+                    break
+                page += 1
+            log_scheduler_message(f'Daily contracts sync completed ({total} total)')
+    except Exception as e:
+        log_scheduler_message(f'Error in sync_contracts: {str(e)}')
+
+
+# Start scheduler on app startup
+if not scheduler.running:
+    scheduler.add_job(
+        func=scheduler_activate_tasks,
+        trigger=IntervalTrigger(minutes=1),  # Check every minute for scheduled tasks
+        id='activate_tasks',
+        name='Activate Scheduled Tasks',
+        replace_existing=True
+    )
+    scheduler.add_job(
+        func=scheduler_sync_items,
+        trigger=CronTrigger(hour=0, minute=0),  # Every day at midnight UTC
+        id='daily_sync_items',
+        name='Daily Sync Items',
+        replace_existing=True
+    )
+    scheduler.add_job(
+        func=scheduler_sync_counterparties,
+        trigger=CronTrigger(hour=0, minute=5),  # Every day at 12:05 AM UTC
+        id='daily_sync_counterparties',
+        name='Daily Sync Counterparties',
+        replace_existing=True
+    )
+    scheduler.add_job(
+        func=scheduler_sync_contracts,
+        trigger=CronTrigger(hour=0, minute=10),  # Every day at 12:10 AM UTC
+        id='daily_sync_contracts',
+        name='Daily Sync Contracts',
+        replace_existing=True
+    )
+    scheduler.start()
+    log_scheduler_message('Scheduler started')
+
+# Shut down scheduler gracefully on app exit
+atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
 
 
 def admin_required(f):
@@ -167,7 +305,69 @@ def new_contract():
 @app.route('/bulk_edit')
 @login_required
 def bulk_edit():
-    contracts_list = Contract.query.order_by(Contract.date.desc()).all()
+    q = Contract.query
+
+    # Nationality-based access control
+    q = _apply_contract_access(q)
+
+    # Text filters
+    number = request.args.get('number', '').strip()
+    buyer = request.args.get('buyer', '').strip()
+    seller = request.args.get('seller', '').strip()
+    commodity = request.args.get('commodity', '').strip()
+    broker = request.args.get('broker', '').strip()
+    office = request.args.get('office', '').strip()
+    status = request.args.get('status', '').strip()
+    uom = request.args.get('uom', '').strip()
+    transport = request.args.get('transport', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    ship_from = request.args.get('ship_from', '').strip()
+    ship_to = request.args.get('ship_to', '').strip()
+    universal = request.args.get('q', '').strip()
+    exact = request.args.get('exact', '').strip()
+
+    if number:    q = q.filter(Contract.salesorder_number.ilike(f'%{number}%'))
+    if buyer:     q = q.filter(Contract.cf_buyer.ilike(f'%{buyer}%'))
+    if seller:    q = q.filter(Contract.customer_name.ilike(f'%{seller}%'))
+    if commodity: q = q.filter(Contract.item_name.ilike(f'%{commodity}%'))
+    if broker:    q = q.filter(Contract.salesperson_name.ilike(f'%{broker}%'))
+    if office:    q = q.filter(Contract.location_name.ilike(f'%{office}%'))
+    if uom:       q = q.filter(Contract.cf_uom.ilike(f'%{uom}%'))
+    if transport: q = q.filter(Contract.cf_trnspname == transport)
+    if date_from: q = q.filter(Contract.date >= date_from)
+    if date_to:   q = q.filter(Contract.date <= date_to)
+    if ship_from: q = q.filter(Contract.shipment_date >= ship_from)
+    if ship_to:   q = q.filter(Contract.shipment_date <= ship_to)
+    if status == 'declined':
+        q = q.filter(Contract.is_declined == True)  # noqa
+    elif status:
+        q = q.filter(Contract.status == status)
+
+    if universal:
+        from sqlalchemy import or_
+        _ucols = [Contract.salesorder_number, Contract.cf_buyer, Contract.customer_name,
+                  Contract.item_name, Contract.salesperson_name, Contract.location_name,
+                  Contract.cf_vessel_name, Contract.cf_customer_ref, Contract.buyer_reference,
+                  Contract.reference_number, Contract.cf_co_broker, Contract.cf_split_broker,
+                  Contract.cf_origin_location, Contract.cf_trnspname, Contract.cf_uom]
+        if exact:
+            q = q.filter(or_(*[c == universal for c in _ucols]))
+        else:
+            q = q.filter(or_(*[c.ilike(f'%{universal}%') for c in _ucols]))
+
+    filters = dict(number=number, buyer=buyer, seller=seller, commodity=commodity,
+                   broker=broker, office=office, status=status, uom=uom,
+                   transport=transport, date_from=date_from,
+                   date_to=date_to, ship_from=ship_from, ship_to=ship_to,
+                   q=universal)
+
+    any_filter = any(filters.values())
+    if any_filter:
+        contracts_list = q.order_by(Contract.date.desc()).all()
+    else:
+        contracts_list = q.order_by(Contract.date.desc()).limit(500).all()
+
     customers = Customer.query.filter_by(is_active=True).order_by(Customer.customer_name).all()
     return render_template('bulk_edit.html', contracts=contracts_list, customers=customers)
 
@@ -1102,6 +1302,100 @@ def dev_debug(target):
     else:
         result = {'error': f'Unknown debug target: {target}'}
     return result
+
+
+@app.route('/dev/scheduler/log')
+@login_required
+def dev_scheduler_log():
+    """Get scheduler log messages."""
+    return {'log': scheduler_log, 'running': scheduler.running}
+
+
+@app.route('/dev/scheduler/start', methods=['POST'])
+@login_required
+def dev_scheduler_start():
+    """Resume the scheduler (if paused)."""
+    if scheduler.running:
+        try:
+            scheduler.resume()
+            log_scheduler_message('Scheduler manually resumed')
+        except:
+            pass  # Already running
+        return {'ok': True, 'message': 'Scheduler running', 'running': True}
+    return {'ok': True, 'message': 'Scheduler already running', 'running': True}
+
+
+@app.route('/dev/scheduler/stop', methods=['POST'])
+@login_required
+def dev_scheduler_stop():
+    """Stop the scheduler."""
+    if scheduler.running:
+        scheduler.pause()
+        log_scheduler_message('Scheduler manually paused')
+        return {'ok': True, 'message': 'Scheduler paused', 'running': False}
+    return {'ok': True, 'message': 'Scheduler already stopped', 'running': False}
+
+
+@app.route('/dev/scheduler/clear-log', methods=['POST'])
+@login_required
+def dev_scheduler_clear_log():
+    """Clear the scheduler log."""
+    global scheduler_log
+    scheduler_log = []
+    return {'ok': True, 'message': 'Log cleared'}
+
+
+@app.route('/dev/sync/items', methods=['POST'])
+@login_required
+def dev_sync_items():
+    """Manually trigger items sync."""
+    try:
+        log_scheduler_message('Manual items sync triggered via dev panel')
+        sync_items()
+        log_scheduler_message('Manual items sync completed')
+        return {'ok': True, 'message': 'Items sync completed'}
+    except Exception as e:
+        msg = f'Items sync error: {str(e)}'
+        log_scheduler_message(msg)
+        return {'ok': False, 'error': msg}
+
+
+@app.route('/dev/sync/counterparties', methods=['POST'])
+@login_required
+def dev_sync_counterparties():
+    """Manually trigger counterparties sync."""
+    try:
+        log_scheduler_message('Manual counterparties sync triggered via dev panel')
+        sync_customers()
+        log_scheduler_message('Manual counterparties sync completed')
+        return {'ok': True, 'message': 'Counterparties sync completed'}
+    except Exception as e:
+        msg = f'Counterparties sync error: {str(e)}'
+        log_scheduler_message(msg)
+        return {'ok': False, 'error': msg}
+
+
+@app.route('/dev/sync/contracts', methods=['POST'])
+@login_required
+def dev_sync_contracts():
+    """Manually trigger contracts sync."""
+    try:
+        log_scheduler_message('Manual contracts sync triggered via dev panel')
+        page = 1
+        total = 0
+        while True:
+            result = sync_contracts_page(page)
+            total += result['count']
+            log_scheduler_message(f'  Synced page {page}: {result["count"]} contracts')
+            if not result['has_more']:
+                break
+            page += 1
+        log_scheduler_message(f'Manual contracts sync completed ({total} total)')
+        return {'ok': True, 'message': f'Contracts sync completed ({total} contracts)'}
+    except Exception as e:
+        msg = f'Contracts sync error: {str(e)}'
+        log_scheduler_message(msg)
+        return {'ok': False, 'error': msg}
 
 
 @app.route('/debug_first_contract')
