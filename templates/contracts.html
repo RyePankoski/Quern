@@ -139,12 +139,14 @@
                 <td>
                     {% if contract.is_declined %}
                         <span class="badge bg-danger">Declined</span>
+                    {% elif contract.paid_status == 'paid' %}
+                        <span class="badge bg-success">Closed</span>
                     {% elif contract.status == 'draft' %}
                         <span class="badge bg-secondary">Draft</span>
                     {% elif contract.status == 'open' %}
                         <span class="badge bg-primary">Open</span>
                     {% elif contract.status == 'invoiced' %}
-                        <span class="badge bg-success">Invoiced</span>
+                        <span class="badge bg-info text-dark">Invoiced</span>
                     {% elif contract.status == 'overdue' %}
                         <span class="badge bg-warning text-dark">Overdue</span>
                     {% else %}

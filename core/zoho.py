@@ -427,6 +427,7 @@ def submit_contract(form_data):
         "location_id": form_data.get('location_id'),
         "line_items": [line_item],
         "custom_fields": custom_fields,
+        "salesperson_name": salesperson_name,
     }
 
     print(f"DEBUG submit_contract: payload line_items = {payload['line_items']}")
@@ -549,6 +550,7 @@ def update_contract(salesorder_id, form_data):
         "notes": form_data.get('delivery_notes'),
         "line_items": [line_item],
         "custom_fields": custom_fields,
+        "salesperson_name": salesperson_name,
     }
 
     api_response = requests.put(
@@ -592,6 +594,7 @@ def upsert_contract_from_zoho(detail):
 
     existing.salesorder_number = detail.get('salesorder_number', '')
     existing.status = detail.get('status', '')
+    existing.paid_status = detail.get('paid_status', '')
     existing.last_modified_time = detail.get('last_modified_time', '')
     existing.date = detail.get('date', '')
     existing.shipment_date = detail.get('shipment_date', '')
