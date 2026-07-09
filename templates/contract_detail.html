@@ -65,7 +65,11 @@
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <div>
             <h2 class="fw-semibold mb-0">{{ contract['salesorder_number'] }}</h2>
-            <span class="text-muted">{{ contract['status'] | capitalize }}</span>
+            <span class="text-muted">
+                {% if contract['paid_status'] == 'paid' %}Closed
+                {% else %}{{ contract['status'] | capitalize }}
+                {% endif %}
+            </span>
         </div>
         <div class="d-flex gap-2">
             <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>

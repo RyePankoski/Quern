@@ -104,6 +104,7 @@ class Contract(db.Model):
     salesorder_id = db.Column(db.String(100), primary_key=True)
     salesorder_number = db.Column(db.String(100))
     status = db.Column(db.String(50))
+    paid_status = db.Column(db.String(50))
     last_modified_time = db.Column(db.String(50))
 
     # Dates

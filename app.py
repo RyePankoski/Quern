@@ -162,7 +162,7 @@ if not scheduler.running:
     scheduler.start()
     log_scheduler_message('Scheduler started')
 
-# Shut down scheduler gracefully on app exit
+# Shut down scheduler on app exit
 atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
 
 
@@ -545,6 +545,7 @@ def contract_detail(salesorder_id):
         'salesorder_id': c.salesorder_id,
         'salesorder_number': c.salesorder_number,
         'status': c.status,
+        'paid_status': c.paid_status,
         'is_declined': c.is_declined,
         'date': c.date,
         'shipment_date': c.shipment_date,
