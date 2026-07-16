@@ -566,7 +566,7 @@ def contract_detail(salesorder_id):
         'custom': {
             'cf_buyer': c.cf_buyer,
             'cf_item_contract_price': c.cf_item_contract_price,
-            'cf_transparent': c.cf_trnspname,
+            'cf_trnspname': c.cf_trnspname,
             'cf_uom': c.cf_uom,
             'cf_customer_ref': c.cf_customer_ref,
             'cf_co_broker': c.cf_co_broker,
