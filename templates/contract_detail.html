@@ -75,6 +75,9 @@
             <a href="/contracts/{{ contract['salesorder_id'] }}/pdf" class="btn btn-outline-secondary" data-no-overlay>Download PDF</a>
             <a href="/contracts/{{ contract['salesorder_id'] }}/docx" class="btn btn-outline-secondary" data-no-overlay>Download DOCX</a>
             <a href="/new_contract?duplicate={{ contract['salesorder_id'] }}" class="btn btn-outline-secondary">Duplicate</a>
+            {% if current_user.is_admin %}
+            <button type="button" class="btn btn-outline-danger" onclick="deleteContract('{{ contract['salesorder_id'] }}', '{{ contract['salesorder_number'] }}')">Delete</button>
+            {% endif %}
             <a href="/contracts" class="btn btn-outline-secondary">← Back to Contracts</a>
         </div>
     </div>
@@ -875,6 +878,27 @@
                 });
         });
     })();
+
+    // ── Delete Contract (admin only) ────────────────────────────────────────────
+    function deleteContract(salesorder_id, salesorder_number) {
+        if (!confirm(`Are you sure you want to delete contract ${salesorder_number}? This action cannot be undone.`)) {
+            return;
+        }
+
+        fetch(`/contracts/${salesorder_id}/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                window.location.href = '/contracts';
+            } else {
+                alert(`Error: ${data.error || 'Unknown error'}`);
+            }
+        })
+        .catch(err => alert(`Error: ${err}`));
+    }
 </script>
 
 {% endblock %}
