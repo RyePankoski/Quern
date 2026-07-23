@@ -1458,6 +1458,30 @@ def toggle_decline(salesorder_id):
     return {'ok': True, 'is_declined': c.is_declined}
 
 
+@app.route('/contracts/<salesorder_id>/delete', methods=['POST'])
+@login_required
+def delete_contract(salesorder_id):
+    if not current_user.is_admin:
+        return {'ok': False, 'error': 'Admin access required'}, 403
+
+    c = Contract.query.get(salesorder_id)
+    if not c:
+        return {'ok': False, 'error': 'Contract not found'}, 404
+
+    # Delete related records
+    Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
+    BrokerCommission.query.filter_by(books_sales_order_id=salesorder_id).delete()
+    ContractNote.query.filter_by(books_sales_order_id=salesorder_id).delete()
+    Task.query.filter_by(books_sales_order_id=salesorder_id).delete()
+    AuditLog.query.filter_by(salesorder_id=salesorder_id).delete()
+
+    # Delete contract
+    db.session.delete(c)
+    db.session.commit()
+
+    return {'ok': True}
+
+
 @app.route('/contracts/<salesorder_id>/shipments/add', methods=['POST'])
 @login_required
 def add_shipment(salesorder_id):
