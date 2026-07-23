@@ -29,8 +29,12 @@
                             {% endfor %}
                         </select>
                         <div id="request-buyer-wrap" style="display:none; margin-top:0.5rem;">
-                            <input type="text" class="form-control" name="requested_buyer_name"
-                                   placeholder="Describe the buyer you need added…">
+                            <div class="mb-2">
+                                <input type="text" class="form-control" name="requested_buyer_legal_name"
+                                       placeholder="Legal business name">
+                            </div>
+                            <input type="text" class="form-control" name="requested_buyer_address"
+                                   placeholder="Address">
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -45,8 +49,12 @@
                             {% endfor %}
                         </select>
                         <div id="request-seller-wrap" style="display:none; margin-top:0.5rem;">
-                            <input type="text" class="form-control" name="requested_seller_name"
-                                   placeholder="Describe the seller you need added…">
+                            <div class="mb-2">
+                                <input type="text" class="form-control" name="requested_seller_legal_name"
+                                       placeholder="Legal business name">
+                            </div>
+                            <input type="text" class="form-control" name="requested_seller_address"
+                                   placeholder="Address">
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -529,6 +537,9 @@
 
     // ── Submit: validate then cache ──────────────────────────────────────────
     document.querySelector('form').addEventListener('submit', function (e) {
+        // Cache form data before any validation, so values persist even on validation errors
+        cacheForm();
+
         const brokerRows = document.querySelectorAll('#broker-commission-body tr');
         if (brokerRows.length > 0) {
             const total = getBrokerTotal();
@@ -550,8 +561,6 @@
             document.querySelector('[name="shipping_date_end"]').focus();
             return;
         }
-
-        cacheForm();
     });
 
     updateTotalCommission();
@@ -600,7 +609,7 @@
         const sync = () => {
             const show = isRequestNew(sel);
             wrap.style.display = show ? 'block' : 'none';
-            if (!show) wrap.querySelector('input').value = '';
+            if (!show) wrap.querySelectorAll('input').forEach(inp => inp.value = '');
         };
         // Select2 dispatches change through jQuery, which native listeners miss —
         // bind via jQuery when available so the field reacts to Select2 selections.

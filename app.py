@@ -820,10 +820,20 @@ def submit_contract_route():
     request_notes = []
     if form_data.get('requested_item_name', '').strip():
         request_notes.append('[REQUEST NEW ITEM: ' + form_data['requested_item_name'].strip() + ']')
-    if form_data.get('requested_buyer_name', '').strip():
-        request_notes.append('[REQUEST NEW BUYER: ' + form_data['requested_buyer_name'].strip() + ']')
-    if form_data.get('requested_seller_name', '').strip():
-        request_notes.append('[REQUEST NEW SELLER: ' + form_data['requested_seller_name'].strip() + ']')
+
+    buyer_legal = form_data.get('requested_buyer_legal_name', '').strip()
+    buyer_address = form_data.get('requested_buyer_address', '').strip()
+    if buyer_legal or buyer_address:
+        buyer_note = '[REQUEST NEW BUYER: ' + (buyer_legal or '(no name)') + (
+            f' — {buyer_address}' if buyer_address else '') + ']'
+        request_notes.append(buyer_note)
+
+    seller_legal = form_data.get('requested_seller_legal_name', '').strip()
+    seller_address = form_data.get('requested_seller_address', '').strip()
+    if seller_legal or seller_address:
+        seller_note = '[REQUEST NEW SELLER: ' + (seller_legal or '(no name)') + (
+            f' — {seller_address}' if seller_address else '') + ']'
+        request_notes.append(seller_note)
 
     # Collect all delivery notes boxes
     delivery_notes_list = request.form.getlist('delivery_notes[]')
@@ -844,6 +854,7 @@ def submit_contract_route():
         meta = Contract.query.get(salesorder_id)
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
+        meta.packing = request.form.get('packing') or None
 
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
@@ -994,6 +1005,7 @@ def update_contract(salesorder_id):
         meta = Contract.query.get(salesorder_id)
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
+        meta.packing = request.form.get('packing') or None
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')
