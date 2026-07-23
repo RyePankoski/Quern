@@ -366,6 +366,7 @@ def submit_contract(form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
+            {"api_name": "cf_shipment_end_date", "value": form_data.get('shipping_date_end')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -421,7 +422,7 @@ def submit_contract(form_data):
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date_end'),
+        "shipment_date": form_data.get('shipping_date'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
         "location_id": form_data.get('location_id'),
@@ -475,6 +476,7 @@ def update_contract(salesorder_id, form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
+            {"api_name": "cf_shipment_end_date", "value": form_data.get('shipping_date_end')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -545,7 +547,7 @@ def update_contract(salesorder_id, form_data):
     payload = {
         "customer_id": form_data.get('seller'),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date_end'),
+        "shipment_date": form_data.get('shipping_date'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
         "line_items": [line_item],
