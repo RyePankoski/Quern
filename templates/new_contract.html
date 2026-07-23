@@ -137,6 +137,12 @@
                             <input type="text" class="form-control" id="total_commission" placeholder="—" readonly>
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Origin</label>
+                        <input type="text" class="form-control" name="origin"
+                               placeholder="e.g. Brazil, Argentina"
+                               value="{{ prefill.origin if prefill else '' }}">
+                    </div>
                     <div class="col-12">
                         <label class="form-label">Quantity Notes</label>
                         <textarea class="form-control" name="quantity_notes" rows="3"
@@ -207,6 +213,21 @@
                                       placeholder="Enter delivery notes...">{{ prefill.delivery_notes if prefill else '' }}</textarea>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addDeliveryNotesBox()">+ Add Notes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Notes</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <textarea class="form-control" name="notes" rows="4"
+                                  placeholder="Enter any additional notes...">{{ prefill.notes if prefill else '' }}</textarea>
                     </div>
                 </div>
             </div>

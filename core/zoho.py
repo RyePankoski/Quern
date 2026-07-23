@@ -739,6 +739,7 @@ def contract_to_form_data_local(contract):
         'vessel_name': contract.cf_vessel_name or '',
         'location_id': contract.location_id or '',
         'location_name': contract.location_name or '',
+        'origin': contract.origin or '',
     }
 
 
