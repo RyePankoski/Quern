@@ -151,6 +151,7 @@ class Contract(db.Model):
     buyer_reference = db.Column(db.String(200))
     is_declined = db.Column(db.Boolean, default=False)
     packing = db.Column(db.String(20))
+    origin = db.Column(db.String(200))
     pic_employee_id = db.Column(db.String(50))
 
     @property

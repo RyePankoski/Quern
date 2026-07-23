@@ -839,6 +839,12 @@ def submit_contract_route():
     delivery_notes_list = request.form.getlist('delivery_notes[]')
     delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
     all_notes = request_notes + delivery_notes_list
+
+    # Add main notes field if provided
+    main_notes = request.form.get('notes', '').strip()
+    if main_notes:
+        all_notes.append(main_notes)
+
     form_data['delivery_notes'] = chr(10).join(all_notes) if all_notes else ''
 
     result = zoho.submit_contract(form_data)
@@ -855,6 +861,7 @@ def submit_contract_route():
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
         meta.packing = request.form.get('packing') or None
+        meta.origin = request.form.get('origin', '').strip() or None
 
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
@@ -994,6 +1001,12 @@ def update_contract(salesorder_id):
     # Collect all delivery notes boxes
     delivery_notes_list = request.form.getlist('delivery_notes[]')
     delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
+
+    # Add main notes field if provided
+    main_notes = request.form.get('notes', '').strip()
+    if main_notes:
+        delivery_notes_list.append(main_notes)
+
     form_data['delivery_notes'] = chr(10).join(delivery_notes_list) if delivery_notes_list else ''
 
     result = zoho.update_contract(salesorder_id, form_data)
@@ -1006,6 +1019,7 @@ def update_contract(salesorder_id):
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
         meta.packing = request.form.get('packing') or None
+        meta.origin = request.form.get('origin', '').strip() or None
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')

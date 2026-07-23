@@ -180,6 +180,11 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Origin</label>
+                        <input type="text" class="form-control" name="origin"
+                               value="{{ meta.origin if meta else '' }}">
+                    </div>
                     <div class="col-12">
                         <label class="form-label">Contract Terms</label>
                         <textarea class="form-control" rows="4" name="terms">{{ contract.get('terms', '') }}</textarea>
