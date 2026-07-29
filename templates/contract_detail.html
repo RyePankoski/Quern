@@ -234,7 +234,7 @@
                     <div class="col-md-3">
                         <label class="form-label">Expected Shipping Date End</label>
                         <input type="date" class="form-control" name="shipping_date_end"
-                               value="{{ contract.get('shipment_date', '') or contract['custom'].get('cf_shipment_end_date', '') }}">
+                               value="{{ contract.get('shipment_date', '') }}">
                     </div>
                     <div class="col-12">
                         <label class="form-label">Delivery Notes</label>
