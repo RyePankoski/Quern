@@ -366,7 +366,6 @@ def submit_contract(form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
-            {"api_name": "cf_shipment_end_date", "value": form_data.get('shipping_date_end')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -476,7 +475,6 @@ def update_contract(salesorder_id, form_data):
             {"api_name": "cf_co_broker", "value": form_data.get('co_broker_name')},
             {"api_name": "cf_co_brokerage_rate", "value": form_data.get('co_brokerage_rate')},
             {"api_name": "cf_vessel_name", "value": form_data.get('vessel_name')},
-            {"api_name": "cf_shipment_end_date", "value": form_data.get('shipping_date_end')},
         ] if cf['value'] and str(cf['value']).strip().lower() != 'none'
     ]
     if second_broker_name:
@@ -600,7 +598,8 @@ def upsert_contract_from_zoho(detail):
     existing.last_modified_time = detail.get('last_modified_time', '')
     existing.date = detail.get('date', '')
     existing.shipment_date = detail.get('shipment_date', '')
-    existing.cf_shipment_end_date = custom.get('cf_shipment_end_date', '')
+    # cf_shipment_end_date is not a Zoho custom field; it is local-only.
+    # Do not overwrite it from the Zoho payload or every sync would wipe it.
     existing.customer_id = detail.get('customer_id', '')
     existing.customer_name = detail.get('customer_name', '')
     existing.cf_buyer = custom.get('cf_buyer', '')
@@ -706,7 +705,8 @@ def contract_to_form_data(contract):
         'co_broker_name': custom.get('cf_co_broker', ''),
         'co_brokerage_rate': custom.get('cf_co_brokerage_rate', ''),
         'vessel_name': custom.get('cf_vessel_name', ''),
-        'shipping_date_end': custom.get('cf_shipment_end_date', ''),
+        # Zoho has no end-date field; this value only exists locally.
+        'shipping_date_end': '',
         'location_id': contract.get('location_id', ''),
         'location_name': contract.get('location_name', ''),
     }
