@@ -153,6 +153,7 @@ class Contract(db.Model):
     packing = db.Column(db.String(20))
     origin = db.Column(db.String(200))
     pic_employee_id = db.Column(db.String(50))
+    paid_date = db.Column(db.String(20))
 
     @property
     def total(self):
