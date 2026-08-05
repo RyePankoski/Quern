@@ -248,6 +248,22 @@
             </div>
         </div>
 
+        <!-- Paid -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Paid</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Date Paid</label>
+                        <input type="date" class="form-control" name="paid_date"
+                               value="{{ meta.paid_date if meta else '' }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Broker Team -->
         <div class="card mb-4">
             <div class="card-header">
