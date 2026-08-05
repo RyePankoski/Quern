@@ -316,6 +316,10 @@ def get_locations():
         {'branch_id': '4435369000015041294', 'branch_name': 'India'},
         {'branch_id': '4435369000015041905', 'branch_name': 'Turkey'},
         {'branch_id': '4435369000015041009', 'branch_name': 'Boulder'},
+        {'branch_id': '', 'branch_name': 'S'},
+        {'branch_id': '', 'branch_name': 'SBC'},
+        {'branch_id': '', 'branch_name': 'SC'},
+        {'branch_id': '', 'branch_name': 'Singapore'},
     ]
 
 
@@ -421,7 +425,7 @@ def submit_contract(form_data):
         "customer_id": form_data.get('seller'),
         "salesorder_number": get_next_test_number(),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date'),
+        "shipment_date": form_data.get('shipping_date_end'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
         "location_id": form_data.get('location_id'),
@@ -545,7 +549,7 @@ def update_contract(salesorder_id, form_data):
     payload = {
         "customer_id": form_data.get('seller'),
         "date": form_data.get('contract_date'),
-        "shipment_date": form_data.get('shipping_date'),
+        "shipment_date": form_data.get('shipping_date_end'),
         "reference_number": form_data.get('booking_numbers_concat', '') or '',
         "notes": form_data.get('delivery_notes'),
         "line_items": [line_item],

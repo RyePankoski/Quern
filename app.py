@@ -862,6 +862,7 @@ def submit_contract_route():
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
         meta.packing = request.form.get('packing') or None
         meta.origin = request.form.get('origin', '').strip() or None
+        meta.paid_date = request.form.get('paid_date', '').strip() or None
 
         shipment_quantities = request.form.getlist('shipment_quantity[]')
         for booking, qty in zip(booking_numbers, shipment_quantities):
@@ -912,12 +913,12 @@ def bulk_edit_save(salesorder_id):
         'quantity', 'commission_rate', 'seller_reference', 'shipping_date_end', 'contract_date',
         'uom', 'transportation', 'co_broker_name', 'vessel_name',
         'commodity_rate', 'co_brokerage_rate', 'delivery_notes', 'terms',
-        'buyer_reference', 'packing', 'buyer', 'seller',
+        'buyer_reference', 'packing', 'buyer', 'seller', 'paid_date',
     }
     if field not in allowed_fields:
         return {'ok': False, 'error': 'Invalid field'}, 400
 
-    if field in ('buyer_reference', 'packing'):
+    if field in ('buyer_reference', 'packing', 'paid_date'):
         meta = Contract.query.get(salesorder_id)
         if not meta:
             meta = Contract(salesorder_id=salesorder_id)
@@ -926,6 +927,8 @@ def bulk_edit_save(salesorder_id):
             meta.buyer_reference = value.strip() or None
         elif field == 'packing':
             meta.packing = value.strip() or None
+        elif field == 'paid_date':
+            meta.paid_date = value.strip() or None
         db.session.commit()
         return {'ok': True}
 
@@ -1020,6 +1023,7 @@ def update_contract(salesorder_id):
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
         meta.packing = request.form.get('packing') or None
         meta.origin = request.form.get('origin', '').strip() or None
+        meta.paid_date = request.form.get('paid_date', '').strip() or None
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')
