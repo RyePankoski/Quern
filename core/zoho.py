@@ -740,7 +740,7 @@ def contract_to_form_data_local(contract):
         'seller_reference': contract.cf_customer_ref or '',
         'co_broker_name': contract.cf_co_broker or '',
         'co_brokerage_rate': contract.cf_co_brokerage_rate or '',
-        'vessel_name': contract.cf_vessel_name or '',
+        'vessel_name': '',  # Omit vessel name on duplicate
         'location_id': contract.location_id or '',
         'location_name': contract.location_name or '',
         'origin': contract.origin or '',
