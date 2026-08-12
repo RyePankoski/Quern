@@ -585,6 +585,15 @@ def upsert_contract_from_zoho(detail):
     line_items = detail.get('line_items', [])
     first_item = line_items[0] if line_items else {}
 
+    # Office is stored on the Zoho side as a line-item reporting tag, not the
+    # top-level branch/location. Read it back from the tag so that changes made
+    # in Zoho (e.g. origin/office edits) sync into Quern's office field.
+    office_tag_name = ''
+    for tag in first_item.get('tags', []):
+        if tag.get('tag_name') == 'Office':
+            office_tag_name = tag.get('tag_option_name', '')
+            break
+
     def safe_float(val):
         try:
             return float(val) if val not in (None, '', 'None') else None
@@ -627,7 +636,10 @@ def upsert_contract_from_zoho(detail):
     existing.salesperson_name = detail.get('salesperson_name', '')
     existing.salesperson_id = detail.get('salesperson_id', '')
     existing.location_id = detail.get('location_id', '')
-    existing.location_name = detail.get('location_name', '')
+    # The Office reporting tag is authoritative for the office field. tag_option_id
+    # lives in a separate namespace from branch/location IDs, so only the name is
+    # used here; location_id stays sourced from the top-level payload.
+    existing.location_name = office_tag_name or detail.get('location_name', '')
     existing.reference_number = detail.get('reference_number', '')
     existing.notes = detail.get('notes', '')
     existing.terms = detail.get('terms', '')
