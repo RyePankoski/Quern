@@ -111,20 +111,20 @@ def scheduler_sync_counterparties():
 
 
 def scheduler_sync_contracts():
-    """Daily sync of contracts from Zoho."""
+    """Incremental sync of changed contracts from Zoho."""
     try:
         with app.app_context():
-            log_scheduler_message('Starting daily contracts sync...')
+            log_scheduler_message('Starting incremental contracts sync...')
             page = 1
             total = 0
             while True:
-                result = sync_contracts_page(page)
+                result = zoho.incremental_sync_page(page)
                 total += result['count']
                 log_scheduler_message(f'  Synced page {page}: {result["count"]} contracts')
                 if not result['has_more']:
                     break
                 page += 1
-            log_scheduler_message(f'Daily contracts sync completed ({total} total)')
+            log_scheduler_message(f'Incremental contracts sync completed ({total} total)')
     except Exception as e:
         log_scheduler_message(f'Error in sync_contracts: {str(e)}')
 
