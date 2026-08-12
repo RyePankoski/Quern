@@ -394,6 +394,8 @@ def contracts():
     date_to = request.args.get('date_to', '').strip()
     ship_from = request.args.get('ship_from', '').strip()
     ship_to = request.args.get('ship_to', '').strip()
+    payment_from = request.args.get('payment_from', '').strip()
+    payment_to = request.args.get('payment_to', '').strip()
     universal = request.args.get('q', '').strip()
     exact = request.args.get('exact', '').strip()
 
@@ -409,6 +411,8 @@ def contracts():
     if date_to:   q = q.filter(Contract.date <= date_to)
     if ship_from: q = q.filter(Contract.shipment_date >= ship_from)
     if ship_to:   q = q.filter(Contract.shipment_date <= ship_to)
+    if payment_from: q = q.filter(Contract.paid_date >= payment_from)
+    if payment_to:   q = q.filter(Contract.paid_date <= payment_to)
     if status == 'declined':
         q = q.filter(Contract.is_declined == True)  # noqa
     elif status:
@@ -430,6 +434,7 @@ def contracts():
                    broker=broker, office=office, status=status, uom=uom,
                    transport=transport, date_from=date_from,
                    date_to=date_to, ship_from=ship_from, ship_to=ship_to,
+                   payment_from=payment_from, payment_to=payment_to,
                    q=universal)
 
     any_filter = any(filters.values())
