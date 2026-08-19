@@ -741,7 +741,13 @@ def contract_to_form_data_local(contract):
         'seller': contract.customer_id or '',
         'buyer': buyer_id or '',
         'contract_date': datetime.now().strftime('%Y-%m-%d'),  # Duplicate defaults to today
-        'shipping_date': '',
+        # NOTE: field names are inverted here — the form's "start" input
+        # (shipping_date) is the dead one and "end" (shipping_date_end) is what
+        # actually persists to contract.shipment_date. Storage wiring is left
+        # as-is per current behaviour; only the duplicate prefill is fixed so
+        # both inputs carry the stored date instead of start coming over blank.
+        # TODO: un-invert the shipping_date / shipping_date_end naming properly.
+        'shipping_date': contract.shipment_date or contract.cf_shipment_end_date or '',
         'shipping_date_end': contract.shipment_date or contract.cf_shipment_end_date or '',
         'delivery_notes': contract.notes or '',
         'terms': contract.terms or '',
