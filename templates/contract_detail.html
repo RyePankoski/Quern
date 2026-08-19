@@ -283,8 +283,21 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Office</label>
-                        <input type="text" class="form-control" value="{{ contract.get('location_name', '') }}" readonly>
+                        <label class="form-label">Office <span style="color:#888780; font-size:0.75rem;">(set by first broker)</span></label>
+                        <select class="form-select" id="location_select" disabled>
+                            <option value="">-- Set by broker --</option>
+                            {% for location in locations %}
+                            <option value="{{ location['branch_id'] }}"
+                                    data-name="{{ location['branch_name'] }}"
+                                    {% if contract.get('location_name') == location['branch_name'] %}selected{% endif %}>
+                                {{ location['branch_name'] }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="location_id" id="location_id_hidden"
+                               value="{{ contract.get('location_id', '') }}">
+                        <input type="hidden" name="location_name" id="location_name"
+                               value="{{ contract.get('location_name', '') }}">
                     </div>
                 </div>
                 <div class="row g-3 mb-4">
@@ -337,7 +350,7 @@
                         </td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-danger"
-                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts(); autoPopulateOfficeFromFirstBroker();">✕
                             </button>
                         </td>
                     </tr>
@@ -364,7 +377,7 @@
                         </td>
                         <td class="text-center">
                             <button type="button" class="btn btn-sm btn-outline-danger"
-                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕
+                                    onclick="this.closest('tr').remove(); recalculateBrokerAmounts(); autoPopulateOfficeFromFirstBroker();">✕
                             </button>
                         </td>
                     </tr>
@@ -490,6 +503,63 @@
 
 <script>
 
+    // ── Office auto-population from first broker (mirrors new_contract.html) ──
+    // The Office reporting tag in Zoho is driven by the first broker's office.
+    // On this edit page the office field was previously a dead read-only input,
+    // so changing the broker never updated location_name and update_contract
+    // preserved the stale Office tag. These helpers keep the hidden
+    // location_name / location_id in sync so the tag updates on save.
+    const employeeOptions = [
+        {% for employee in active_employees %}
+        { id: "{{ employee.employee_id }}", name: "{{ employee.employee_name }}", office: "{{ employee.office or '' }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const locationOptions = [
+        {% for location in locations %}
+        { id: "{{ location['branch_id'] }}", name: "{{ location['branch_name'] }}" }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function autoPopulateOfficeFromFirstBroker() {
+        const firstBrokerSelect = document.querySelector('#broker-commission-body tr:first-child [name="broker_employee[]"]');
+        const locationSelect = document.getElementById('location_select');
+        const locationNameInput = document.getElementById('location_name');
+        const locationIdHidden = document.getElementById('location_id_hidden');
+        if (!firstBrokerSelect) {
+            locationSelect.value = '';
+            locationNameInput.value = '';
+            locationIdHidden.value = '';
+            return;
+        }
+        const empId = firstBrokerSelect.value;
+        const emp = employeeOptions.find(e => e.id === empId);
+        const office = emp ? emp.office : '';
+        if (office) {
+            const match = locationOptions.find(l => l.name === office);
+            if (match) {
+                locationSelect.value = match.id;
+                locationNameInput.value = match.name;
+                locationIdHidden.value = match.id;
+                return;
+            }
+        }
+        locationSelect.value = '';
+        locationNameInput.value = '';
+        locationIdHidden.value = '';
+    }
+
+    // Wire office update to any change in the broker table (employee selection,
+    // row add, row removal — all can change who the "first" broker is).
+    function bindOfficeAutoPopulation() {
+        document.querySelectorAll('#broker-commission-body [name="broker_employee[]"]').forEach(sel => {
+            if (!sel.dataset.officeBound) {
+                sel.addEventListener('change', autoPopulateOfficeFromFirstBroker);
+                sel.dataset.officeBound = '1';
+            }
+        });
+    }
+
     function getBrokerTotal() {
         let total = 0;
         document.querySelectorAll('[name="broker_percentage[]"]').forEach(input => {
@@ -540,7 +610,7 @@
             </td>
             <td class="text-center">
                 <button type="button" class="btn btn-sm btn-outline-danger"
-                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts();">✕</button>
+                        onclick="this.closest('tr').remove(); recalculateBrokerAmounts(); autoPopulateOfficeFromFirstBroker();">✕</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -548,7 +618,10 @@
             tr.querySelector('[name="broker_employee[]"]').value = employeeId;
         }
         tr.querySelector('[name="broker_percentage[]"]').addEventListener('input', recalculateBrokerAmounts);
+        tr.querySelector('[name="broker_employee[]"]').addEventListener('change', autoPopulateOfficeFromFirstBroker);
+        tr.querySelector('[name="broker_employee[]"]').dataset.officeBound = '1';
         recalculateBrokerAmounts();
+        autoPopulateOfficeFromFirstBroker();
     }
 
     document.querySelector('[name="commission_rate"]').addEventListener('input', recalculateBrokerAmounts);
@@ -829,6 +902,12 @@
 
     updateShipmentTotal();
     recalculateBrokerAmounts();
+
+    // Wire broker→office population for the server-rendered rows. Note: we do
+    // NOT call autoPopulateOfficeFromFirstBroker() on load, so an existing
+    // contract's saved office is preserved until the user actually changes the
+    // broker. It only recomputes on a broker change / add / remove.
+    bindOfficeAutoPopulation();
 
     let formDirty = false;
     document.querySelectorAll('form input, form select, form textarea').forEach(el => {
