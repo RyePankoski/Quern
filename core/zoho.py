@@ -751,7 +751,7 @@ def contract_to_form_data_local(contract):
         'commodity_rate': contract.cf_item_contract_price or '',
         'transportation': contract.cf_trnspname or '',
         'uom': contract.cf_uom or '',
-        'seller_reference': contract.cf_customer_ref or '',
+        'seller_reference': '',  # Drop reference numbers on duplicate
         'co_broker_name': contract.cf_co_broker or '',
         'co_brokerage_rate': contract.cf_co_brokerage_rate or '',
         'vessel_name': '',  # Omit vessel name on duplicate
