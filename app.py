@@ -601,11 +601,15 @@ def contract_detail(salesorder_id):
         (e for e in employees if e.salesperson_id == c.salesperson_id), None
     )
 
+    # locations + active employees (with .office) drive the broker→office
+    # auto-population on the edit page, mirroring the new-contract form.
+    locations = zoho.get_locations()
+
     return render_template('contract_detail.html',
                            contract=contract, customers=customers, items=items,
                            tasks=tasks, meta=c, shipments=shipments,
                            commissions=commissions, notes=notes, employee_map=employee_map,
-                           active_employees=active_employees,
+                           active_employees=active_employees, locations=locations,
                            salesperson_employee=salesperson_employee)
 
 
