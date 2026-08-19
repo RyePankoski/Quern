@@ -730,6 +730,8 @@ def contract_to_form_data(contract):
 
 def contract_to_form_data_local(contract):
     """Convert a local Contract model instance to a flat form_data dict for prefilling."""
+    from datetime import datetime
+
     buyer_id = contract.cf_buyer_id
     if not buyer_id and contract.cf_buyer:
         buyer_customer = Customer.query.filter_by(customer_name=contract.cf_buyer).first()
@@ -738,7 +740,7 @@ def contract_to_form_data_local(contract):
     return {
         'seller': contract.customer_id or '',
         'buyer': buyer_id or '',
-        'contract_date': '',
+        'contract_date': datetime.now().strftime('%Y-%m-%d'),  # Duplicate defaults to today
         'shipping_date': '',
         'shipping_date_end': contract.shipment_date or contract.cf_shipment_end_date or '',
         'delivery_notes': contract.notes or '',
