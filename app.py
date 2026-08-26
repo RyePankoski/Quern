@@ -1450,6 +1450,26 @@ def dev_sync_contracts():
         return {'ok': False, 'error': msg}
 
 
+@app.route('/dev/export/powerbi', methods=['POST'])
+@login_required
+def dev_export_powerbi():
+    """Manually trigger Power BI Excel export."""
+    try:
+        log_scheduler_message('Manual Power BI export triggered via dev panel')
+        output_path, result = export_contracts_to_excel()
+        if output_path:
+            log_scheduler_message(f'Manual Power BI export completed: {result} contracts exported to {output_path}')
+            return {'ok': True, 'message': f'Power BI export completed: {result} contracts exported', 'path': output_path}
+        else:
+            msg = f'Power BI export error: {result}'
+            log_scheduler_message(msg)
+            return {'ok': False, 'error': msg}
+    except Exception as e:
+        msg = f'Power BI export error: {str(e)}'
+        log_scheduler_message(msg)
+        return {'ok': False, 'error': msg}
+
+
 @app.route('/debug_first_contract')
 @login_required
 def debug_first_contract():
