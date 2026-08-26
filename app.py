@@ -849,11 +849,6 @@ def submit_contract_route():
     delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
     all_notes = request_notes + delivery_notes_list
 
-    # Add main notes field if provided
-    main_notes = request.form.get('notes', '').strip()
-    if main_notes:
-        all_notes.append(main_notes)
-
     form_data['delivery_notes'] = chr(10).join(all_notes) if all_notes else ''
 
     result = zoho.submit_contract(form_data)
@@ -1013,11 +1008,6 @@ def update_contract(salesorder_id):
     # Collect all delivery notes boxes
     delivery_notes_list = request.form.getlist('delivery_notes[]')
     delivery_notes_list = [note.strip() for note in delivery_notes_list if note.strip()]
-
-    # Add main notes field if provided
-    main_notes = request.form.get('notes', '').strip()
-    if main_notes:
-        delivery_notes_list.append(main_notes)
 
     form_data['delivery_notes'] = chr(10).join(delivery_notes_list) if delivery_notes_list else ''
 
