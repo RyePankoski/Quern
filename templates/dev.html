@@ -97,6 +97,18 @@
         </div>
     </div>
 
+    <!-- Power BI Export -->
+    <div class="card mb-4">
+        <div class="card-header">Power BI Export</div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-outline-info" onclick="runExport('powerbi')">Export Contracts to Excel</button>
+            </div>
+            <div id="export-status" class="text-muted mt-2" style="font-size:0.85rem;"></div>
+            <small class="d-block text-muted mt-2">Exports to <code>/mnt/quern-data/contracts_export.xlsx</code></small>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -220,6 +232,40 @@
         statusEl.textContent = `Syncing ${type}...`;
 
         fetch(`/dev/sync/${type}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                if (data.ok) {
+                    statusEl.textContent = `✓ ${data.message}`;
+                    statusEl.style.color = '#4f7a1a';
+                    refreshSchedulerLog();
+                    setTimeout(() => statusEl.textContent = '', 3000);
+                } else {
+                    statusEl.textContent = `✗ Error: ${data.error}`;
+                    statusEl.style.color = '#cc0000';
+                }
+            })
+            .catch(err => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                statusEl.textContent = `✗ Error: ${err}`;
+                statusEl.style.color = '#cc0000';
+            });
+    }
+
+    // ── Power BI Export ────────────────────────────────────────────────────────
+
+    function runExport(type) {
+        const statusEl = document.getElementById('export-status');
+        const btn = event.target;
+        const originalText = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = 'Exporting...';
+        statusEl.textContent = `Exporting ${type}...`;
+
+        fetch(`/dev/export/${type}`, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 btn.textContent = originalText;
