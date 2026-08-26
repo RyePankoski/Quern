@@ -561,7 +561,6 @@ def export_contracts():
 
 
 @app.route('/contracts/export-csv')
-@login_required
 def export_contracts_csv():
     """Export all contracts as CSV for Power BI or direct download."""
     import csv
