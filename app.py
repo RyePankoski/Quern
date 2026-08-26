@@ -1470,6 +1470,21 @@ def dev_export_powerbi():
         return {'ok': False, 'error': msg}
 
 
+@app.route('/dev/download/powerbi', methods=['GET'])
+@login_required
+def dev_download_powerbi():
+    """Download the Power BI export CSV file."""
+    try:
+        export_path = '/mnt/quern-data/contracts_export.csv'
+        if not os.path.exists(export_path):
+            flash('Export file not found. Run the export first.', 'danger')
+            return redirect('/dev')
+        return send_file(export_path, as_attachment=True, download_name='contracts_export.csv', mimetype='text/csv')
+    except Exception as e:
+        flash(f'Download error: {str(e)}', 'danger')
+        return redirect('/dev')
+
+
 @app.route('/debug_first_contract')
 @login_required
 def debug_first_contract():
