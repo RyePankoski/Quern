@@ -611,7 +611,7 @@ def export_contracts_csv():
             c.notes or '',
             c.terms or '',
             c.is_declined or '',
-            ])
+        ])
 
     # Convert to bytes
     output.seek(0)
@@ -1800,7 +1800,7 @@ def _export_contracts_xlsx():
             c.notes or '',
             c.terms or '',
             'Yes' if c.is_declined else 'No',
-            ])
+        ])
 
     buffer = io.BytesIO()
     wb.save(buffer)
