@@ -562,14 +562,12 @@ def export_contracts():
 
 @app.route('/contracts/export-csv')
 def export_contracts_csv():
-    """Export all contracts as CSV for Power BI or direct download."""
+    """Export all contracts as CSV for Power BI or direct download (public endpoint)."""
     import csv
     from datetime import date
     from io import StringIO
 
-    q = Contract.query
-    q = _apply_contract_access(q)
-    q = q.order_by(Contract.date.desc())
+    q = Contract.query.order_by(Contract.date.desc())
 
     # CSV headers matching the Excel export
     headers = [
@@ -613,7 +611,7 @@ def export_contracts_csv():
             c.notes or '',
             c.terms or '',
             c.is_declined or '',
-        ])
+            ])
 
     # Convert to bytes
     output.seek(0)
@@ -1802,7 +1800,7 @@ def _export_contracts_xlsx():
             c.notes or '',
             c.terms or '',
             'Yes' if c.is_declined else 'No',
-        ])
+            ])
 
     buffer = io.BytesIO()
     wb.save(buffer)
