@@ -4,7 +4,6 @@ Exports contracts data to an Excel file for Power BI ingestion.
 """
 import os
 from datetime import datetime
-from io import BytesIO
 import pandas as pd
 
 try:
@@ -81,7 +80,7 @@ def export_contracts_to_excel(output_path=None):
 
         contracts_df = pd.DataFrame(contracts_data)
 
-        # Build broker commissions DataFrame (pivoted by contract)
+        # Build broker commissions lookup
         commissions_data = {}
         commission_rows = BrokerCommission.query.all()
 
