@@ -441,7 +441,7 @@
     <!-- Notes -->
     <div class="card mb-4" id="notes">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Notes</h5>
+            <h5 class="mb-0">Internal Communication</h5>
             <span class="badge bg-secondary">{{ notes | length }}</span>
         </div>
         <div class="card-body">
@@ -466,7 +466,7 @@
             {% endif %}
             <form method="POST" action="/contracts/{{ contract['salesorder_id'] }}/notes/add" data-no-overlay>
                 <div class="mb-2">
-                    <textarea class="form-control" name="body" rows="3" placeholder="Add a note..."></textarea>
+                    <textarea class="form-control" name="body" rows="3" placeholder="Please enter any internal notes."></textarea>
                 </div>
                 <div class="d-flex justify-content-end">
                     <button type="submit" class="btn btn-sm btn-primary">Add Note</button>
