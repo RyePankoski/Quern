@@ -560,6 +560,77 @@ def export_contracts():
     )
 
 
+@app.route('/contracts/export-csv')
+@login_required
+def export_contracts_csv():
+    """Export all contracts as CSV for Power BI or direct download."""
+    import csv
+    from datetime import date
+    from io import StringIO
+
+    q = Contract.query
+    q = _apply_contract_access(q)
+    q = q.order_by(Contract.date.desc())
+
+    # CSV headers matching the Excel export
+    headers = [
+        'Contract #', 'Date', 'Status', 'Seller', 'Buyer',
+        'Seller Ref #', 'Buyer Ref #', 'Commodity', 'Quantity', 'UOM',
+        'Commodity Price', 'Commission Rate', 'Commission Total',
+        'Transportation', 'Vessel Name', 'Ship Date Start', 'Ship Date End',
+        'Co-Broker', 'Co-Brokerage Rate', 'Salesperson', 'Office',
+        'Packing', 'Notes', 'Terms', 'Declined',
+    ]
+
+    # Build CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+
+    for c in q.yield_per(500):
+        writer.writerow([
+            c.salesorder_number or '',
+            c.date or '',
+            c.status or '',
+            c.customer_name or '',
+            c.cf_buyer or '',
+            c.cf_customer_ref or '',
+            c.buyer_reference or '',
+            c.item_name or '',
+            c.quantity or '',
+            c.cf_uom or '',
+            c.cf_item_contract_price or '',
+            c.rate or '',
+            round((c.rate or 0) * (c.quantity or 0), 2) or '',
+            c.cf_trnspname or '',
+            c.cf_vessel_name or '',
+            c.shipment_date or '',
+            c.cf_shipment_end_date or '',
+            c.cf_co_broker or '',
+            c.cf_co_brokerage_rate or '',
+            c.salesperson_name or '',
+            c.location_name or '',
+            c.packing or '',
+            c.notes or '',
+            c.terms or '',
+            c.is_declined or '',
+        ])
+
+    # Convert to bytes
+    output.seek(0)
+    from io import BytesIO
+    buffer = BytesIO(output.getvalue().encode('utf-8'))
+    buffer.seek(0)
+
+    filename = f"contracts_{date.today().isoformat()}.csv"
+    return send_file(
+        buffer,
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
 @app.route('/contracts/<salesorder_id>')
 @login_required
 def contract_detail(salesorder_id):
