@@ -6,7 +6,11 @@ import os
 from datetime import datetime
 from io import BytesIO
 import pandas as pd
-from core.models import Contract, BrokerCommission, Employee, db
+
+try:
+    from .models import Contract, BrokerCommission, Employee, db
+except ImportError:
+    from models import Contract, BrokerCommission, Employee, db
 
 
 def export_contracts_to_excel(output_path=None):
