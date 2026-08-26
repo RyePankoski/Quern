@@ -16,6 +16,7 @@ from core.pdf import generate_contract_pdf, generate_contract_docx
 from core.tasks import generate_tasks, check_task_reactivity
 from core.zoho import get_sales_orders, sync_employees, sync_items, sync_customers
 from core.zoho import sync_customers_page, sync_contracts_page
+from core.powerbi_export import export_contracts_to_excel
 
 from functions import *
 
@@ -129,6 +130,20 @@ def scheduler_sync_contracts():
         log_scheduler_message(f'Error in sync_contracts: {str(e)}')
 
 
+def scheduler_export_powerbi():
+    """Export contracts to Excel for Power BI daily refresh."""
+    try:
+        with app.app_context():
+            log_scheduler_message('Starting Power BI export...')
+            output_path, result = export_contracts_to_excel()
+            if output_path:
+                log_scheduler_message(f'Power BI export completed: {result} contracts exported to {output_path}')
+            else:
+                log_scheduler_message(f'Power BI export failed: {result}')
+    except Exception as e:
+        log_scheduler_message(f'Error in export_powerbi: {str(e)}')
+
+
 # Start scheduler on app startup
 if not scheduler.running:
     scheduler.add_job(
@@ -157,6 +172,13 @@ if not scheduler.running:
         trigger=CronTrigger(hour=0, minute=10),  # Every day at 12:10 AM UTC
         id='daily_sync_contracts',
         name='Daily Sync Contracts',
+        replace_existing=True
+    )
+    scheduler.add_job(
+        func=scheduler_export_powerbi,
+        trigger=CronTrigger(hour=0, minute=15),  # Every day at 12:15 AM UTC (after contracts sync)
+        id='daily_export_powerbi',
+        name='Daily Power BI Export',
         replace_existing=True
     )
     scheduler.start()
