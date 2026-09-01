@@ -82,7 +82,7 @@
         </div>
     </div>
 
-    <form method="POST" action="/contracts/{{ contract['salesorder_id'] }}/update">
+    <form method="POST" id="contract-form" action="/contracts/{{ contract['salesorder_id'] }}/update">
 
         <!-- Contract Details -->
         <div class="card mb-4">
@@ -909,15 +909,19 @@
     // broker. It only recomputes on a broker change / add / remove.
     bindOfficeAutoPopulation();
 
+    // Dirty-tracking is scoped to the contract form only. The notes add/delete
+    // forms are siblings, not children, so typing a note no longer marks the
+    // page dirty and no longer triggers the leave warning.
+    const contractForm = document.getElementById('contract-form');
     let formDirty = false;
-    document.querySelectorAll('form input, form select, form textarea').forEach(el => {
+    contractForm.querySelectorAll('input, select, textarea').forEach(el => {
         el.addEventListener('change', () => {
             formDirty = true;
             document.getElementById('unsaved-banner').style.display = 'block';
         });
     });
 
-    document.querySelector('form').addEventListener('submit', () => {
+    contractForm.addEventListener('submit', () => {
         formDirty = false;
     });
 
