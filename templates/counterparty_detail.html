@@ -50,6 +50,7 @@
                             <th>Role</th>
                             <th>Buyer</th>
                             <th>Seller</th>
+                            <th>Commodity</th>
                             <th>Status</th>
                             <th>Date</th>
                         </tr>
@@ -61,6 +62,7 @@
                             <td>{% if contract.customer_id == customer.customer_id %}Seller{% elif contract.cf_buyer_id == customer.customer_id %}Buyer{% else %}—{% endif %}</td>
                             <td>{{ contract.cf_buyer or '—' }}</td>
                             <td>{{ contract.customer_name or '—' }}</td>
+                            <td>{{ contract.item_name or '—' }}</td>
                             <td>{{ contract.status | capitalize }}</td>
                             <td>{{ contract.date }}</td>
                         </tr>
