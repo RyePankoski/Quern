@@ -205,7 +205,74 @@
 
         // Trigger overlay for clickable table rows
         $('tr[onclick]').on('click', showOverlay);
+
+        initSortableTables();
     });
+
+    // Sortable tables: add class="sortable" to a <table> and each <th> becomes
+    // click-to-sort. Opt a column out with data-nosort on its <th>.
+    // Client-side only - it sorts the rows already rendered, not the full set.
+    function initSortableTables(root) {
+        (root || document).querySelectorAll('table.sortable').forEach(function (table) {
+            const thead = table.tHead;
+            const tbody = table.tBodies[0];
+            if (!thead || !tbody || !thead.rows.length) return;
+            const headers = thead.rows[0].cells;
+
+            function cellText(row, idx) {
+                const cell = row.cells[idx];
+                let v = cell ? cell.textContent.trim() : '';
+                return v === '\u2014' ? '' : v;
+            }
+
+            function comparator(idx, dir) {
+                const numeric = /^-?[$]?[\d,.]+%?$/;
+                return function (a, b) {
+                    const x = cellText(a, idx), y = cellText(b, idx);
+                    // Blanks always sink to the bottom, whichever direction
+                    if (x === '' && y === '') return 0;
+                    if (x === '') return 1;
+                    if (y === '') return -1;
+                    if (numeric.test(x) && numeric.test(y)) {
+                        const nx = parseFloat(x.replace(/[$,%]/g, ''));
+                        const ny = parseFloat(y.replace(/[$,%]/g, ''));
+                        if (!isNaN(nx) && !isNaN(ny)) return (nx - ny) * dir;
+                    }
+                    // numeric collation handles ISO dates and embedded numbers
+                    return x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+                };
+            }
+
+            Array.prototype.forEach.call(headers, function (th, idx) {
+                if (th.hasAttribute('data-nosort')) return;
+                th.style.cursor = 'pointer';
+                th.style.userSelect = 'none';
+                if (!th.querySelector('.sort-caret')) {
+                    const caret = document.createElement('span');
+                    caret.className = 'sort-caret';
+                    caret.style.marginLeft = '0.35rem';
+                    caret.style.fontSize = '0.75em';
+                    caret.style.opacity = '0.5';
+                    caret.textContent = '\u21C5';
+                    th.appendChild(caret);
+                }
+                th.addEventListener('click', function () {
+                    const dir = th.dataset.sortDir === 'asc' ? -1 : 1;
+                    Array.prototype.forEach.call(headers, function (other) {
+                        delete other.dataset.sortDir;
+                        const c = other.querySelector('.sort-caret');
+                        if (c) { c.textContent = '\u21C5'; c.style.opacity = '0.5'; }
+                    });
+                    th.dataset.sortDir = dir === 1 ? 'asc' : 'desc';
+                    const c = th.querySelector('.sort-caret');
+                    if (c) { c.textContent = dir === 1 ? '\u2191' : '\u2193'; c.style.opacity = '1'; }
+                    const rows = Array.prototype.slice.call(tbody.rows);
+                    rows.sort(comparator(idx, dir));
+                    rows.forEach(function (r) { tbody.appendChild(r); });
+                });
+            });
+        });
+    }
 
     // Helper to check attributes in jQuery
     $.fn.hasAttribute = function(name) {
