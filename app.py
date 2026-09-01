@@ -435,10 +435,18 @@ def contracts():
     if ship_to:   q = q.filter(Contract.shipment_date <= ship_to)
     if payment_from: q = q.filter(Contract.paid_date >= payment_from)
     if payment_to:   q = q.filter(Contract.paid_date <= payment_to)
+    # Status filtering mirrors the badge precedence in contracts.html:
+    # Declined > Closed (paid) > underlying Zoho status. Without this, filtering
+    # for e.g. "Open" returned rows the table then badged as Closed or Declined.
+    from sqlalchemy import or_ as _or
+    _not_declined = Contract.is_declined.isnot(True)
+    _not_paid = _or(Contract.paid_status.is_(None), Contract.paid_status != 'paid')
     if status == 'declined':
         q = q.filter(Contract.is_declined == True)  # noqa
+    elif status == 'closed':
+        q = q.filter(_not_declined, Contract.paid_status == 'paid')
     elif status:
-        q = q.filter(Contract.status == status)
+        q = q.filter(_not_declined, _not_paid, Contract.status == status)
 
     if universal:
         from sqlalchemy import or_
