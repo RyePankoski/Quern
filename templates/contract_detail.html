@@ -667,6 +667,51 @@
         return document.querySelector(`[name="${fieldName}"]`);
     }
 
+    // Select2 hides the original <select> and renders a sibling container in its
+    // place. Measuring the hidden original returns a near-zero rect, which parked
+    // the spotlight and the task box in the top-left corner instead of on the
+    // field. buyer / seller / commodity are all select2-enhanced and are all
+    // valid books_field values, so this hit a good chunk of the templates.
+    function getAnchorElement(fieldEl) {
+        if (!fieldEl) return null;
+        const sib = fieldEl.nextElementSibling;
+        if (sib && sib.classList.contains('select2-container')) return sib;
+        const r = fieldEl.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0 && fieldEl.parentElement) {
+            const pr = fieldEl.parentElement.getBoundingClientRect();
+            if (pr.width > 0 && pr.height > 0) return fieldEl.parentElement;
+        }
+        return fieldEl;
+    }
+
+    // scrollIntoView with behavior:'smooth' has no completion callback and takes
+    // longer than the old fixed 350ms wait, so the rect was being measured
+    // mid-scroll. Poll until the element's position stops changing instead.
+    function afterScrollSettles(el, cb) {
+        let last = null, stable = 0, frames = 0;
+        (function step() {
+            const top = Math.round(el.getBoundingClientRect().top);
+            stable = (top === last) ? stable + 1 : 0;
+            last = top;
+            if (stable >= 3 || ++frames > 90) { cb(); return; }
+            requestAnimationFrame(step);
+        })();
+    }
+
+    function paintSpotlight(anchorEl) {
+        const rect = anchorEl.getBoundingClientRect();
+        const overlay = document.getElementById('task-overlay');
+        overlay.style.display = 'block';
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.pointerEvents = 'none';
+        overlay.style.background = `radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%)`;
+    }
+
+    // Tracks the element the spotlight is currently pinned to, so it can be
+    // recomputed if the viewport changes underneath it.
+    let currentAnchor = null;
+
     function positionBox(fieldEl) {
         const rect = fieldEl.getBoundingClientRect();
         const box = document.getElementById('task-box');
@@ -733,27 +778,25 @@
         if (task.field) {
             const fieldEl = getFieldElement(task.field);
             if (!fieldEl) { showTask(index + 1); return; }
+            const anchorEl = getAnchorElement(fieldEl);
+            currentAnchor = anchorEl;
 
-            fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            anchorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-            setTimeout(() => {
-                const rect = fieldEl.getBoundingClientRect();
-                const overlay = document.getElementById('task-overlay');
-                overlay.style.display = 'block';
-                overlay.style.position = 'fixed';
-                overlay.style.inset = '0';
-                overlay.style.pointerEvents = 'none';
-                overlay.style.background = `radial-gradient(ellipse ${rect.width + 40}px ${rect.height + 40}px at ${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px, transparent 40%, rgba(14,14,12,0.92) 70%)`;
-
-                positionBox(fieldEl);
+            afterScrollSettles(anchorEl, () => {
+                paintSpotlight(anchorEl);
+                positionBox(anchorEl);
                 actionArea.innerHTML = `<button id="btn-confirm" class="btn btn-success w-100">Confirm</button>`;
                 document.getElementById('btn-confirm').onclick = () => {
+                    // Value always comes from the real form control, never the
+                    // select2 container we measured against.
                     const val = fieldEl.value || fieldEl.options?.[fieldEl.selectedIndex]?.value || '';
                     confirmTask(task.id, val);
                 };
-            }, 350);
+            });
 
         } else {
+            currentAnchor = null;
             const overlay = document.getElementById('task-overlay');
             overlay.style.display = 'block';
             overlay.style.background = 'rgba(14,14,12,0.85)';
@@ -774,8 +817,16 @@
         document.getElementById('tasks-toggle').textContent = `Tasks (${remaining})`;
     }
 
+    window.addEventListener('resize', () => {
+        if (walkthroughActive && currentAnchor) {
+            paintSpotlight(currentAnchor);
+            positionBox(currentAnchor);
+        }
+    });
+
     function exitWalkthrough() {
         walkthroughActive = false;
+        currentAnchor = null;
         document.getElementById('task-overlay').style.display = 'none';
         const box = document.getElementById('task-box');
         box.style.display = 'none';
