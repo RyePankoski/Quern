@@ -550,7 +550,17 @@ def update_employee_active(employee_id):
 @login_required
 def export_contracts():
     from datetime import date
-    buffer = _export_contracts_xlsx()
+    try:
+        buffer = _export_contracts_xlsx()
+    except ImportError:
+        # openpyxl absent from the deployed environment - surface it instead of
+        # returning a bare 500 with no explanation.
+        flash('Excel export unavailable: openpyxl is not installed on the server. Use Export to CSV.', 'danger')
+        return redirect('/contracts')
+    except Exception as e:
+        app.logger.exception('Excel export failed')
+        flash(f'Excel export failed: {e}', 'danger')
+        return redirect('/contracts')
     filename = f"contracts_{date.today().isoformat()}.xlsx"
     return send_file(
         buffer,
@@ -1749,8 +1759,9 @@ def _export_contracts_xlsx():
         15, 12, 12, 28, 28, 18, 18, 25, 12, 12,
         16, 16, 16, 16, 20, 14, 14,
         20, 16, 20, 15,
-        12, 10, 40, 40, 10,
+        12, 40, 40, 10,
     ]
+    assert len(col_widths) == len(headers), 'col_widths must match headers'
 
     # write_only mode streams rows to a temp file → bounded memory for large exports
     wb = Workbook(write_only=True)
