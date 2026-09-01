@@ -194,8 +194,9 @@
         });
 
         $('form').on('submit', function() {
-            // Only show if the form is valid and not blocked by custom JS validation
-            if (this.checkValidity() && !this.dataset.blockOverlay) {
+            // Only show if the form is valid, not blocked by custom JS validation,
+            // and not explicitly opted out via data-no-overlay
+            if (this.checkValidity() && !this.dataset.blockOverlay && !this.hasAttribute('data-no-overlay')) {
                 showOverlay();
             }
             // Reset flag after each attempt
@@ -210,6 +211,15 @@
     $.fn.hasAttribute = function(name) {
         return this.attr(name) !== undefined;
     };
+
+    // Safety net: if a page has a beforeunload guard and the user cancels the
+    // browser's leave prompt, navigation aborts but the overlay would otherwise
+    // stay up and lock the page. Dropping it here costs nothing when the user
+    // does leave, since the document is replaced anyway.
+    window.addEventListener('beforeunload', function () {
+        const o = document.getElementById('loading-overlay');
+        if (o) o.style.display = 'none';
+    });
 
     // Global overlay controls — accessible from child page scripts
     function showOverlay() { document.getElementById('loading-overlay').style.display = 'flex'; }
