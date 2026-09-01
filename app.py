@@ -1288,8 +1288,18 @@ def confirm_task(task_id):
     task = Task.query.get(task_id)
     if not task:
         return {'ok': False, 'error': 'Task not found'}, 404
-    value = data.get('completed_value', '')
-    if value == 'yes':
+    value = (data.get('completed_value') or '').strip()
+
+    # Field-backed tasks send the field's own value (a vessel name, a date, a
+    # customer id), not the literal string 'yes'. The old check only accepted
+    # 'yes', so every field-backed task fell through to the pending branch and
+    # never saved. Yes/no tasks have no books_field and keep the 'yes' check.
+    if task.template is not None and task.template.books_field:
+        done = bool(value)
+    else:
+        done = value.lower() == 'yes'
+
+    if done:
         task.status = 'complete'
         task.completed_value = value
         task.completed_at = datetime.now(timezone.utc)
@@ -1298,7 +1308,8 @@ def confirm_task(task_id):
         task.completed_value = None
         task.completed_at = None
     db.session.commit()
-    return {'ok': True}
+    # Return the persisted status so the client stops assuming success.
+    return {'ok': True, 'status': task.status}
 
 
 # endregion
