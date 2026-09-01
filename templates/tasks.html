@@ -161,19 +161,121 @@
                     inner.textContent = 'No tasks found.';
                     return;
                 }
-                inner.innerHTML = tasks.map(t => `
-                    <div class="d-flex justify-content-between align-items-center py-1"
-                         style="border-bottom:1px solid #3a3a38;">
-                        <span style="color:${t.status === 'pending' ? '#d3d1c7' : '#888780'};">
-                            ${t.title}
-                        </span>
-                        ${t.status === 'pending'
-                            ? '<span class="badge" style="background:#4f7a1a; font-size:0.7rem;">pending</span>'
-                            : '<span style="color:#888780; font-size:0.8rem;">✓</span>'}
-                    </div>
-                `).join('');
+                inner.innerHTML = tasks.map(t => renderTaskRow(t)).join('');
             })
             .catch(() => { inner.textContent = 'Failed to load tasks.'; });
+    }
+
+    function esc(v) {
+        return String(v == null ? '' : v)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Fields that want something other than a plain text box.
+    const TASK_INPUT_TYPES = {
+        contract_date: 'date',
+        quantity: 'number',
+        commodity_rate: 'number',
+        commission_rate: 'number',
+        co_brokerage_rate: 'number'
+    };
+
+    // Pending tasks whose linked field is simple enough to type into get an
+    // inline box here. Anything needing a lookup (buyer, seller, commodity) or
+    // a yes/no answer still has to be done on the contract page.
+    function renderTaskRow(t) {
+        const rowStyle = 'border-bottom:1px solid #3a3a38;';
+        if (t.status !== 'pending') {
+            return `
+                <div class="d-flex justify-content-between align-items-center py-1" style="${rowStyle}">
+                    <span style="color:#888780;">${esc(t.title)}</span>
+                    <span style="color:#888780; font-size:0.8rem;">${esc(t.completed_value) || '\u2713'}</span>
+                </div>
+            `;
+        }
+        if (!t.editable) {
+            return `
+                <div class="d-flex justify-content-between align-items-center py-1" style="${rowStyle}">
+                    <span style="color:#d3d1c7;">${esc(t.title)}</span>
+                    <span class="badge" style="background:#4f7a1a; font-size:0.7rem;">pending</span>
+                </div>
+            `;
+        }
+        const type = TASK_INPUT_TYPES[t.field] || 'text';
+        const step = type === 'number' ? ' step="any"' : '';
+        return `
+            <div class="py-2" style="${rowStyle}" data-task-row="${t.id}" data-task-title="${esc(t.title)}">
+                <div style="color:#d3d1c7; margin-bottom:0.35rem;">${esc(t.title)}</div>
+                <div class="d-flex gap-2 align-items-center">
+                    <input type="${type}"${step} class="form-control form-control-sm task-value-input"
+                           placeholder="${esc(t.description || t.title)}" style="max-width:280px;">
+                    <button class="btn btn-sm btn-success"
+                            onclick="saveTaskValue(this, ${t.id})">Save</button>
+                    <span class="task-value-msg" style="font-size:0.8rem;"></span>
+                </div>
+            </div>
+        `;
+    }
+
+    function saveTaskValue(btn, taskId) {
+        const row = btn.closest('[data-task-row]');
+        const input = row.querySelector('.task-value-input');
+        const msg = row.querySelector('.task-value-msg');
+        const title = row.dataset.taskTitle || '';
+        const value = input.value.trim();
+        if (!value) {
+            msg.style.color = '#c07a5a';
+            msg.textContent = 'Enter a value first.';
+            return;
+        }
+        btn.disabled = true;
+        input.disabled = true;
+        msg.style.color = '#888780';
+        msg.textContent = 'Saving\u2026';
+
+        fetch(`/tasks/${taskId}/value`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value: value })
+        })
+            .then(r => r.json().then(d => ({ ok: r.ok, body: d })))
+            .then(({ body }) => {
+                if (!body.ok) {
+                    btn.disabled = false;
+                    input.disabled = false;
+                    msg.style.color = '#c07a5a';
+                    msg.textContent = body.error || 'Save failed.';
+                    return;
+                }
+                row.outerHTML = `
+                    <div class="d-flex justify-content-between align-items-center py-1"
+                         style="border-bottom:1px solid #3a3a38;">
+                        <span style="color:#888780;">${esc(title)}</span>
+                        <span style="color:#888780; font-size:0.8rem;">${esc(value)}</span>
+                    </div>`;
+                decrementPendingBadge(btn);
+            })
+            .catch(() => {
+                btn.disabled = false;
+                input.disabled = false;
+                msg.style.color = '#c07a5a';
+                msg.textContent = 'Save failed.';
+            });
+    }
+
+    function decrementPendingBadge(el) {
+        const item = el.closest('.task-item');
+        if (!item) return;
+        const remaining = Math.max(0, parseInt(item.dataset.pending || '0', 10) - 1);
+        item.dataset.pending = remaining;
+        const badge = item.querySelector('.count-badge');
+        if (badge) badge.textContent = `${remaining} pending`;
+        const summary = document.getElementById('summary-tasks');
+        if (summary) {
+            const left = Math.max(0, parseInt(summary.textContent, 10) - 1);
+            summary.textContent = left;
+        }
     }
 
     function applyFilters() {

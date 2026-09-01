@@ -732,6 +732,9 @@ def contract_tasks_json(salesorder_id):
         'title': t.template.title,
         'description': t.template.description,
         'status': t.status,
+        'field': t.template.books_field or '',
+        'editable': (t.template.books_field or '') in INLINE_TASK_FIELDS,
+        'completed_value': t.completed_value or '',
         'completed_at': t.completed_at.isoformat() if t.completed_at else None,
     } for t in tasks]
 
@@ -1014,6 +1017,48 @@ def submit_contract_route():
         return redirect('/new_contract?restore=1')
 
 
+def _apply_contract_field(salesorder_id, field, value):
+    """Push a single field change to Zoho and refresh the local cache.
+    Shared by /bulk_edit/<id> and the tasks page inline editor.
+    Returns (True, None) on success or (False, message) on failure."""
+    contract = zoho.get_sales_order(salesorder_id)
+    form_data = zoho.contract_to_form_data(contract)
+    form_data[field] = value
+
+    salesperson_zoho_id = contract.get('salesperson_id', '')
+    if salesperson_zoho_id:
+        matching_emp = Employee.query.filter_by(salesperson_id=salesperson_zoho_id).first()
+        form_data['salesperson_employee_id'] = matching_emp.employee_id if matching_emp else ''
+    else:
+        form_data['salesperson_employee_id'] = ''
+
+    local_shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
+    booking_parts = []
+    for s in local_shipments:
+        if s.booking_number:
+            qty_str = str(int(s.quantity)) if s.quantity and s.quantity == int(s.quantity) else str(
+                s.quantity) if s.quantity else ''
+            booking_parts.append(f'{s.booking_number}: {qty_str}' if qty_str else s.booking_number)
+    form_data['booking_numbers_concat'] = ', '.join(booking_parts)
+
+    result = zoho.update_contract(salesorder_id, form_data)
+    if result.get('code', 0) == 0:
+        check_task_reactivity(salesorder_id, {field: value})
+        zoho.upsert_contract_from_zoho(result['salesorder'])
+        return True, None
+    return False, result.get('message', 'Unknown error')
+
+
+# books_field values the tasks page can edit inline. Excludes buyer, seller and
+# commodity (each needs a lookup against another table, not a free-text box) and
+# shipping_date (the form field naming is inverted - see the shipment date TODO).
+INLINE_TASK_FIELDS = {
+    'vessel_name', 'commodity_rate', 'transportation', 'delivery_notes',
+    'contract_date', 'commission_rate', 'quantity', 'uom', 'terms',
+    'co_broker_name', 'co_brokerage_rate', 'seller_reference',
+}
+
+
 @app.route('/bulk_edit/<salesorder_id>', methods=['POST'])
 @login_required
 def bulk_edit_save(salesorder_id):
@@ -1061,33 +1106,10 @@ def bulk_edit_save(salesorder_id):
         else:
             return {'ok': False, 'error': result.get('message', 'Unknown error')}, 500
 
-    contract = zoho.get_sales_order(salesorder_id)
-    form_data = zoho.contract_to_form_data(contract)
-    form_data[field] = value
-
-    salesperson_zoho_id = contract.get('salesperson_id', '')
-    if salesperson_zoho_id:
-        matching_emp = Employee.query.filter_by(salesperson_id=salesperson_zoho_id).first()
-        form_data['salesperson_employee_id'] = matching_emp.employee_id if matching_emp else ''
-    else:
-        form_data['salesperson_employee_id'] = ''
-
-    local_shipments = Shipment.query.filter_by(books_sales_order_id=salesorder_id).all()
-    booking_parts_bulk = []
-    for s in local_shipments:
-        if s.booking_number:
-            qty_str = str(int(s.quantity)) if s.quantity and s.quantity == int(s.quantity) else str(
-                s.quantity) if s.quantity else ''
-            booking_parts_bulk.append(f'{s.booking_number}: {qty_str}' if qty_str else s.booking_number)
-    form_data['booking_numbers_concat'] = ', '.join(booking_parts_bulk)
-
-    result = zoho.update_contract(salesorder_id, form_data)
-    if result.get('code', 0) == 0:
-        check_task_reactivity(salesorder_id, {field: value})
-        zoho.upsert_contract_from_zoho(result['salesorder'])
+    ok, err = _apply_contract_field(salesorder_id, field, value)
+    if ok:
         return {'ok': True}
-    else:
-        return {'ok': False, 'error': result.get('message', 'Unknown error')}, 500
+    return {'ok': False, 'error': err}, 500
 
 
 @app.route('/contracts/<salesorder_id>/update', methods=['POST'])
@@ -1309,6 +1331,39 @@ def confirm_task(task_id):
         task.completed_at = None
     db.session.commit()
     # Return the persisted status so the client stops assuming success.
+    return {'ok': True, 'status': task.status}
+
+
+@app.route('/tasks/<int:task_id>/value', methods=['POST'])
+@login_required
+def task_submit_value(task_id):
+    """Set a task's linked contract field straight from the tasks page dropdown,
+    then mark the task complete. Only free-text/numeric fields are accepted;
+    anything needing a lookup still has to go through the contract page."""
+    task = Task.query.get(task_id)
+    if not task:
+        return {'ok': False, 'error': 'Task not found'}, 404
+
+    field = task.template.books_field if task.template else None
+    if not field:
+        return {'ok': False, 'error': 'Task has no linked field'}, 400
+    if field not in INLINE_TASK_FIELDS:
+        return {'ok': False, 'error': f'{field} must be set on the contract page'}, 400
+
+    value = (request.get_json() or {}).get('value', '')
+    if isinstance(value, str):
+        value = value.strip()
+    if not value:
+        return {'ok': False, 'error': 'A value is required'}, 400
+
+    ok, err = _apply_contract_field(task.books_sales_order_id, field, value)
+    if not ok:
+        return {'ok': False, 'error': err}, 500
+
+    task.status = 'complete'
+    task.completed_value = value
+    task.completed_at = datetime.now(timezone.utc)
+    db.session.commit()
     return {'ok': True, 'status': task.status}
 
 
