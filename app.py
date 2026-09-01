@@ -1119,18 +1119,26 @@ def update_contract(salesorder_id):
 
     form_data['delivery_notes'] = chr(10).join(delivery_notes_list) if delivery_notes_list else ''
 
-    result = zoho.update_contract(salesorder_id, form_data)
-    if result.get('code', 0) == 0:
-        check_task_reactivity(salesorder_id, form_data)
-
-        zoho.upsert_contract_from_zoho(result['salesorder'])
-
-        meta = Contract.query.get(salesorder_id)
+    # Quern-local fields are persisted BEFORE the Zoho call and committed
+    # independently. Zoho refuses edits to sales orders that have already been
+    # invoiced, and these fields have zero presence in any Zoho payload, so a
+    # rejected push must not take a local-only edit (notably paid_date) down
+    # with it. Mirrors the local-only short-circuit already used in
+    # /bulk_edit/<salesorder_id>.
+    meta = Contract.query.get(salesorder_id)
+    if meta:
         meta.buyer_reference = request.form.get('buyer_reference', '').strip() or None
         meta.pic_employee_id = request.form.get('pic_employee_id') or None
         meta.packing = request.form.get('packing') or None
         meta.origin = request.form.get('origin', '').strip() or None
         meta.paid_date = request.form.get('paid_date', '').strip() or None
+        db.session.commit()
+
+    result = zoho.update_contract(salesorder_id, form_data)
+    if result.get('code', 0) == 0:
+        check_task_reactivity(salesorder_id, form_data)
+
+        zoho.upsert_contract_from_zoho(result['salesorder'])
 
         Shipment.query.filter_by(books_sales_order_id=salesorder_id).delete()
         shipment_quantities = request.form.getlist('shipment_quantity[]')
@@ -1160,7 +1168,8 @@ def update_contract(salesorder_id):
         salesorder_number = result['salesorder']['salesorder_number']
         return redirect(f'/submit_success/{salesorder_id}?number={salesorder_number}&action=updated')
     else:
-        flash(f"Update failed: {result.get('message', 'Unknown error')}", 'danger')
+        flash(f"Zoho update failed: {result.get('message', 'Unknown error')} "
+              f"(Quern-only fields such as Paid Date were saved.)", 'danger')
         return redirect(request.referrer or '/contracts')
 
 
