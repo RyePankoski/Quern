@@ -734,22 +734,39 @@
         box.style.transform = 'translate(-50%, -50%)';
     }
 
+    // Tasks the user declined or left blank this session. They stay pending in
+    // the database, but we must not re-show them immediately or the walkthrough
+    // loops on the same task forever. Cleared on each new walkthrough run.
+    const skippedIds = new Set();
+
+    function pendingList() {
+        return Object.keys(taskData).filter(
+            id => taskData[id].status === 'pending' && !skippedIds.has(id)
+        );
+    }
+
     function confirmTask(taskId, value) {
         fetch(`/tasks/${taskId}/confirm`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ completed_value: value })
         }).then(res => res.json()).then(data => {
-            if (data.ok) {
-                taskData[taskId].status = 'complete';
-                updateTaskButton();
-                showTask(0);
+            if (!data.ok) return;
+            // Trust the persisted status rather than assuming completion. The
+            // old code marked every task complete locally regardless of what
+            // the server actually saved, so the counter dropped and the
+            // walkthrough advanced even when nothing had been written.
+            taskData[taskId].status = data.status || 'complete';
+            if (taskData[taskId].status === 'pending') {
+                skippedIds.add(String(taskId));
             }
+            updateTaskButton();
+            showTask(0);
         });
     }
 
     function showTask(index) {
-        const pendingIds = Object.keys(taskData).filter(id => taskData[id].status === 'pending');
+        const pendingIds = pendingList();
 
         if (index >= pendingIds.length) {
             exitWalkthrough();
@@ -837,6 +854,7 @@
     function enterWalkthrough(startIndex) {
         document.body.style.overflow = 'hidden';
         walkthroughActive = true;
+        skippedIds.clear();
         const box = document.getElementById('task-box');
         box.style.width = '280px';
         box.style.transform = '';
