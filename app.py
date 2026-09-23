@@ -26,6 +26,12 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///quern.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
+# Session cookie hardening. HttpOnly is Flask's default. SameSite=Lax blocks the
+# session cookie on cross-site POSTs (basic CSRF mitigation) while still allowing
+# the top-level GET redirect back from Microsoft sign-in. Secure is only enforced
+# on Azure (WEBSITE_SITE_NAME is set by App Service) so local HTTP dev still works.
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = bool(os.getenv('WEBSITE_SITE_NAME'))
 db.init_app(app)
 migrate = Migrate(app, db, render_as_batch=True)
 
@@ -579,8 +585,12 @@ def export_contracts():
 
 
 @app.route('/contracts/export-csv')
+@login_required
 def export_contracts_csv():
-    """Export all contracts as CSV for Power BI or direct download (public endpoint)."""
+    """Export all contracts as CSV for direct download by logged-in users.
+
+    Previously public for a Power BI integration that was never completed.
+    """
     import csv
     from datetime import date
     from io import StringIO
@@ -1282,7 +1292,16 @@ def submit_success(salesorder_id):
 
 # region Sub-processes like confirming tasks or seeding tasks
 @app.route('/seed_tasks')
+@login_required
+@admin_required
+def seed_tasks_route():
+    """Admin-only HTTP entry point for seeding default task templates."""
+    return seed_tasks()
+
+
 def seed_tasks():
+    """Seed default task templates if none exist. Plain function (no auth
+    decorators) so it can be called from init/startup code without a request."""
     if TaskTemplate.query.first():
         return "Templates already seeded, skipping."
     templates = [
@@ -1373,6 +1392,7 @@ def task_submit_value(task_id):
 # region Dev page stuff
 @app.route('/debug/contracts_list')
 @login_required
+@admin_required
 def debug_contracts_list():
     orders = get_sales_orders(page=1)
     return orders[0] if orders else {}
@@ -1380,6 +1400,7 @@ def debug_contracts_list():
 
 @app.route('/debug/customers')
 @login_required
+@admin_required
 def debug_customers():
     token = zoho.get_access_token()
     import requests
@@ -1393,6 +1414,7 @@ def debug_customers():
 
 @app.route('/debug/items')
 @login_required
+@admin_required
 def debug_items():
     token = zoho.get_access_token()
     import requests
@@ -1406,6 +1428,7 @@ def debug_items():
 
 @app.route('/dev')
 @login_required
+@admin_required
 def dev_panel():
     return render_template('dev.html')
 
@@ -1466,6 +1489,7 @@ def init_contracts_page():
 
 @app.route('/init/incremental/page')
 @login_required
+@admin_required
 def init_incremental_page():
     page = request.args.get('page', 1, type=int)
     result = zoho.incremental_sync_page(page)
@@ -1474,6 +1498,7 @@ def init_incremental_page():
 
 @app.route('/dev/action/<action>', methods=['POST'])
 @login_required
+@admin_required
 def dev_action(action):
     with app.app_context():
         if action == 'wipe_tasks':
@@ -1505,6 +1530,7 @@ def dev_action(action):
 
 @app.route('/dev/debug/<target>')
 @login_required
+@admin_required
 def dev_debug(target):
     if target == 'first_contract':
         result = debug_first_contract()
@@ -1519,6 +1545,7 @@ def dev_debug(target):
 
 @app.route('/dev/scheduler/log')
 @login_required
+@admin_required
 def dev_scheduler_log():
     """Get scheduler log messages."""
     return {'log': scheduler_log, 'running': scheduler.running}
@@ -1526,6 +1553,7 @@ def dev_scheduler_log():
 
 @app.route('/dev/scheduler/start', methods=['POST'])
 @login_required
+@admin_required
 def dev_scheduler_start():
     """Resume the scheduler (if paused)."""
     if scheduler.running:
@@ -1540,6 +1568,7 @@ def dev_scheduler_start():
 
 @app.route('/dev/scheduler/stop', methods=['POST'])
 @login_required
+@admin_required
 def dev_scheduler_stop():
     """Stop the scheduler."""
     if scheduler.running:
@@ -1551,6 +1580,7 @@ def dev_scheduler_stop():
 
 @app.route('/dev/scheduler/clear-log', methods=['POST'])
 @login_required
+@admin_required
 def dev_scheduler_clear_log():
     """Clear the scheduler log."""
     global scheduler_log
@@ -1560,6 +1590,7 @@ def dev_scheduler_clear_log():
 
 @app.route('/dev/sync/items', methods=['POST'])
 @login_required
+@admin_required
 def dev_sync_items():
     """Manually trigger items sync."""
     try:
@@ -1575,6 +1606,7 @@ def dev_sync_items():
 
 @app.route('/dev/sync/counterparties', methods=['POST'])
 @login_required
+@admin_required
 def dev_sync_counterparties():
     """Manually trigger counterparties sync."""
     try:
@@ -1590,6 +1622,7 @@ def dev_sync_counterparties():
 
 @app.route('/dev/sync/contracts', methods=['POST'])
 @login_required
+@admin_required
 def dev_sync_contracts():
     """Manually trigger contracts sync."""
     try:
@@ -1613,6 +1646,7 @@ def dev_sync_contracts():
 
 @app.route('/dev/export/powerbi', methods=['POST'])
 @login_required
+@admin_required
 def dev_export_powerbi():
     """Manually trigger Power BI Excel export."""
     try:
@@ -1633,6 +1667,7 @@ def dev_export_powerbi():
 
 @app.route('/dev/download/powerbi', methods=['GET'])
 @login_required
+@admin_required
 def dev_download_powerbi():
     """Download the Power BI export CSV file."""
     try:
@@ -1648,6 +1683,7 @@ def dev_download_powerbi():
 
 @app.route('/debug_first_contract')
 @login_required
+@admin_required
 def debug_first_contract():
     orders = get_sales_orders(page=1)
     if not orders:
@@ -1659,6 +1695,7 @@ def debug_first_contract():
 
 @app.route('/debug_locations')
 @login_required
+@admin_required
 def debug_locations():
     return {'locations': zoho.get_locations()}
 
@@ -1933,6 +1970,8 @@ def _build_contract_data(salesorder_id):
 
 
 @app.route('/debug/contract_tags/<salesorder_id>')
+@login_required
+@admin_required
 def debug_contract_tags(salesorder_id):
     from core.zoho import get_access_token
     import requests

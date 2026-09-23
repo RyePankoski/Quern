@@ -2,3 +2,9 @@
 *.db
 __pycache__/
 .token_cache
+# Local data and editor state (never commit)
+instance/
+*.db-journal
+*.sqlite
+.env.*
+!.env.example
