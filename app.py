@@ -26,10 +26,6 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///quern.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv("SECRET_KEY")
-# Session cookie hardening. HttpOnly is Flask's default. SameSite=Lax blocks the
-# session cookie on cross-site POSTs (basic CSRF mitigation) while still allowing
-# the top-level GET redirect back from Microsoft sign-in. Secure is only enforced
-# on Azure (WEBSITE_SITE_NAME is set by App Service) so local HTTP dev still works.
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = bool(os.getenv('WEBSITE_SITE_NAME'))
 db.init_app(app)

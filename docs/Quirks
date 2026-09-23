@@ -1,0 +1,230 @@
+QUERN - QUIRKS AND GOTCHAS
+Written at handoff, September 2026.
+
+This file is a collection of all the rather strange things that I have discovered or had to work around while
+building this app, so hopefully you do not need to go through the same pain I did.
+
+
+READ THIS FIRST
+
+Pushing to main is how you deploy to Azure. There is no staging environment but it would
+be trivial to set up if you so desire.
+
+Do not run /init, "First Time Startup", or "Wipe tasks" on production. They delete every task, and
+tasks exist only in Quern.
+
+Do not run flask db commands against production. The live alembic_version table points at a
+revision that no longer exists. See "Schema changes" below.
+
+Though its unlikely that you would, dont add any gunicorn workers. It is fine that this app runs on a single thread
+because the concurrent user base is rather small, and many functions depend on being single threaded. For example,
+if you added another worker, it would run the syncs several times a night.
+
+Be careful with anything that triggers a full Zoho sync. The daily quota is 10,000 calls and a full
+contract sync costs roughly 16,000.
+
+
+HOW QUERN RELATES TO ZOHO
+
+Zoho books is the contracting software that you are interfacing with. It is the authoritative state of truth
+and Quern pulls all relevant data from it. Reads are local on quern because we sync the data from Zoho. Initially
+I opposed this idea because it keeps the level of risk lower on the Quern side, but due to some of the needs of
+the brokers and accountants, all zoho data had to be brought over into quern.
+
+-The Contract primary key is Zoho's salesorder_id.
+
+Some data exists only in Quern and cannot be rebuilt from Zoho: tasks, task templates, internal
+notes, shipments, broker commissions, paid_date, the declined flag, the audit log, and users. This
+is why database backups matter.
+
+There is another Azure mount for the db, that azure points to. It is SQL-lite, simply because it was the simplest option at that time.
+I suspect you could move it to a full fledged SQL db rather easily, but that was never a focus of mine
+
+REPORTING TAGS: OFFICE AND P&L GROUP
+
+This is the most intricate part of the Zoho integration.
+
+Office is a line-item reporting tag, not Zoho's branch/location.
+P&L Group is a separate line-item reporting tag. Office follows the
+first broker's office. P&L Group follows the commodity. Staff sometimes say "origin PNL tag" when
+they mean the Office tag.
+
+Branch/location IDs and tag option IDs are separate namespaces; one cannot be derived from the
+other. core/zoho.py has two hardcoded lists that do not agree:
+
+get_locations() holds branch IDs and drives the office dropdown. S, SBC, SC, and Singapore have
+empty branch IDs. Boulder and Head Office share a branch ID.
+
+get_office_tag_option_id() maps office names to tag option IDs. FrontSeat, Shanghai, and Turkey are
+missing, so contracts for those offices are submitted with no Office tag, silently. Boulder and Head
+Office share a tag option ID.
+
+Zoho's /reportingtags API does not expose tag option IDs. The office IDs were collected from
+existing contracts using utility scripts/scrape_office_tags.py. A new office means scraping its ID
+the same way and adding it to the map.
+
+P&L Group option IDs are not hardcoded. They are read from each item's tags during item sync and
+stored on Item.pnl_group_tag_option_id, so P&L tagging is only as current as the last item sync.
+
+A PUT to a sales order replaces all of its tags. update_contract() fetches the existing contract
+and re-sends its tags, merging Office and P&L Group separately. Without this, any edit erased them.
+
+The office is matched by exact string. If the broker's office doesn't exactly match a key in the
+tag map, no Office tag is sent. On sync, the Office tag name is read back into
+Contract.location_name, falling back to Zoho's location_name.
+
+
+ZOHO API BEHAVIOUR
+
+The sales order list endpoint omits line items, tags, and custom fields, so every contract needs a
+separate detail call (GET /salesorders/{id}).
+
+The nightly contract sync is incremental: it filters on last_modified_time and only fetches changed
+contracts. State is kept in SyncState under last_incremental_sync, with a 24-hour fallback on first
+run. A bulk edit in Zoho that touches many records will still use a lot of quota.
+
+Customer sync makes a detail call per customer (about 800 to 900) to get billing addresses. It used
+to exceed the gunicorn timeout, which is why startup.sh sets --timeout 600.
+
+Zoho refuses edits to sales orders that have been invoiced. Quern saves its local-only fields
+before calling Zoho so a rejected push doesn't lose them.
+
+A sales order's Zoho status stays "invoiced"; "closed" does not mean paid. Quern shows status with
+this precedence: Declined (local), then Closed (paid_status is paid), then the Zoho status.
+
+Employees come from a Zoho custom module, cm_employees, not from Books users. Only the first 200
+are fetched. The office field's name varies between records, so the code tries several. An
+employee is active unless the word "inactive" appears in cf_position.
+
+Employee sync is not scheduled. It runs only from the dev panel or /init, and when it runs it
+overwrites manual Active toggles and office edits made in Quern.
+
+Deletions do not sync in either direction. A contract deleted in Zoho stays in Quern. Quern's admin
+Delete removes the contract locally only, along with its shipments, commissions, notes, tasks, and
+audit log entries, and does not touch Zoho.
+
+Contracts created through Quern are numbered TEST-### by get_next_test_number(), which only scans
+the 200 most recent sales orders. Unconfirmed whether this is intended; it looks like leftover test
+code. Worth raising with Enrique.
+
+
+FIELD MAPPING
+
+Buyer is stored in cf_buyer as the buyer's name, not an ID. Quern matches it to a customer by exact
+name, so a renamed or duplicate customer breaks the link.
+
+Zoho has one shipment_date. The form's "end" date maps to it; the "start" field is not saved
+anywhere. The variable names in the code are inverted relative to this (see the TODO in
+core/zoho.py). cf_shipment_end_date is local-only despite the cf_ prefix; sending it to Zoho causes
+an error, and sync must never overwrite it.
+
+cf_item_contract_price is free text, such as "0.72 (WN26)". It must stay a string column.
+
+The first broker is sent as salesperson_name, by name. The second broker goes to cf_split_broker,
+not cf_co_broker (which is the external co-broker). cf_split_percentage is sent as a decimal, so
+50% becomes 0.5.
+
+Booking numbers are joined into the top-level reference_number.
+
+location_id is sent when a contract is created but not when it is updated.
+
+Item origin is cf_origin_location. An item's P&L Group is in its tags, not reporting_tags.
+
+Custom field values equal to the text "none" are treated as empty.
+
+
+ACCESS AND LOGIN
+
+Logging in needs a Microsoft account and a matching row in the users table (emails matched
+lowercase). Add users at /admin/users.
+
+The user field called nationality actually means office. A non-admin with it set sees only that
+office's contracts, plus any they are a broker on; with none set, they see everything. This is
+enforced on the contracts list, item and counterparty pages, bulk edit, and the Excel export. It is
+not enforced on the dashboard, contract pages opened by URL, PDF/DOCX downloads, or the CSV export.
+
+Any logged-in user can toggle an employee's Active status. This is by design.
+
+Dev, debug, and init routes are admin-only. There are no CSRF tokens; the session cookie is
+SameSite=Lax.
+
+The Entra client secret used for login expires. When it does, nobody can log in. Check the date in
+Entra ID, App registrations, Quern, Certificates & secrets.
+
+
+INFRASTRUCTURE
+
+Azure App Service "quern" in resource group quern_group, Canada Central, B1, Python 3.11 on Linux.
+
+One gunicorn worker (startup.sh), with APScheduler running in-process. Times are UTC: task
+activation every minute, items at 00:00, customers at 00:05, contracts at 00:10, Power BI export at
+00:15. The scheduler log is at /dev/scheduler/log. The Zoho access token is cached in memory, which
+is fine for one worker.
+
+The database is SQLite at /mnt/quern-data/quern.db on an Azure Files mount. Kudu's File Manager
+doesn't reliably show /mnt; use SSH and find /mnt -name "quern.db" 2>/dev/null. Over SSH, the
+deployed code lives under /tmp/<hash>/ with an antenv virtualenv.
+
+Deployment runs through GitHub Actions on push to main. It logs in to Azure through the managed
+identity oidc-msi-bd4c, which needs a federated credential for each repo and branch allowed to
+deploy. Azure builds dependencies on the server.
+
+Secrets (SECRET_KEY, the Zoho credentials, the Entra settings) live in App Service environment
+variables. Never commit them.
+
+
+SCHEMA CHANGES
+
+The production migration history is broken, so add columns directly. Open SSH (App Service,
+Development Tools, SSH) and run, for example:
+
+python3 -c "import sqlite3; c=sqlite3.connect('/mnt/quern-data/quern.db'); c.execute('ALTER TABLE contracts ADD COLUMN example VARCHAR(100)'); c.commit(); print('ok')"
+
+Then update core/models.py to match and deploy. The same pattern works for one-off data fixes.
+
+This uses Python's built-in sqlite3 on purpose: importing app.py starts a second copy of the
+scheduler inside the shell. If it reports "no such table", the path is wrong and it has created an
+empty file there, which should be deleted.
+
+
+REQUIREMENTS.TXT
+
+The file is currently UTF-16 encoded, from a PowerShell pip freeze redirect. pip tolerates it but
+other tools may not. Windows-only packages (pywin32) and heavy ones (pandas, numpy) have broken
+deploys before. Review it by hand and prefer pinning only direct dependencies.
+
+
+FRONT END
+
+Select2 fires change events through jQuery, so native addEventListener('change') won't fire; use
+jQuery .on('change'). Select2 also hides the original select element, which throws off anything
+that measures element positions, such as the task spotlight.
+
+The new-contract form restores saved input from sessionStorage only on ?restore=1, after a failed
+submit.
+
+The office field on both contract pages is filled by autoPopulateOfficeFromFirstBroker() when the
+first broker changes.
+
+To run the code, you may need to create a .env file. You can find all of the credentials on Azure. .env goes in the root.
+
+
+KNOWN ISSUES AND DEAD CODE
+
+/bulk_edit still uses the old status precedence.
+second_broker_name is missing from the update_contract() payload.
+The shipment "start" date is a dead input.
+A Zoho push still fires when only local-only fields change. Harmless but wasteful.
+item_detail renders every contract for a commodity with no row cap.
+The contract_detail route passes both a Zoho-shaped dict and the model object to the template.
+Legacy Query.get() calls are deprecated in SQLAlchemy 2.0.
+create_user() in functions.py seeds a hardcoded list of users.
+Power BI was abandoned. The scheduled export, core/powerbi_export.py, /contracts/export-csv, and the
+dev panel buttons are leftovers and can be removed.
+docs/security.md is a list of goals, not a description of what is implemented.
+
+
+WHO TO ASK
+
+Enrique can help you with all of the hard requirements and login information.
+Julia is at the moment our tester and has a deep understanding of the needs of the brokers. Most bugs were found by her. Though both of them can help you understand the exact needs of the brokers.
